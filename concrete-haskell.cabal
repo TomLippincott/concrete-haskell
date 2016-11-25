@@ -1,5 +1,5 @@
 name:                concrete-haskell
-version:             0.1.0.3
+version:             0.1.0.4
 synopsis:            Library for the Concrete data format.
 description:         Library for the Concrete data format.
 homepage:            https://github.com/hltcoe
@@ -47,7 +47,6 @@ library
                      , vector
                      , hashable
                      , bytestring
-                     , aeson
                      , containers
                      
   default-language:    Haskell2010
