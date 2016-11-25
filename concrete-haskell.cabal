@@ -1,5 +1,5 @@
 name:                concrete-haskell
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Library for the Concrete data format.
 description:         Library for the Concrete data format.
 homepage:            https://github.com/hltcoe
