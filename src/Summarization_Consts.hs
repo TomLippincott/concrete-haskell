@@ -13,7 +13,7 @@
 -- DO NOT EDIT UNLESS YOU ARE SURE YOU KNOW WHAT YOU ARE DOING --
 -----------------------------------------------------------------
 
-module SearchService_Iface where
+module Summarization_Consts where
 import Prelude (($), (.), (>>=), (==), (++))
 import qualified Prelude as P
 import qualified Control.Exception as X
@@ -41,14 +41,6 @@ import qualified Communication_Types
 import qualified Services_Types
 import qualified Structure_Types
 import qualified Uuid_Types
-import qualified Metadata_Types
-import qualified Entities_Types
 
 
-import Search_Types
-
-import Service_Iface
-class Service_Iface a => SearchService_Iface a where
-  search :: a -> SearchQuery -> P.IO SearchResult
-  getCapabilities :: a -> P.IO (Vector.Vector SearchCapability)
-  getCorpora :: a -> P.IO (Vector.Vector LT.Text)
+import Summarization_Types

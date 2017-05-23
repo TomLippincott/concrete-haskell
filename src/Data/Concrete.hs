@@ -20,6 +20,7 @@ module Data.Concrete (
     , module Situations_Types
     , module Spans_Types
     , module Structure_Types
+    , module Summarization_Types
     , module Twitter_Types
     , module Uuid_Types
     ) where
@@ -43,5 +44,6 @@ import Services_Types
 import Situations_Types
 import Spans_Types
 import Structure_Types
+import Summarization_Types
 import Twitter_Types
 import Uuid_Types

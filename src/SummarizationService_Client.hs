@@ -13,7 +13,9 @@
 -- DO NOT EDIT UNLESS YOU ARE SURE YOU KNOW WHAT YOU ARE DOING --
 -----------------------------------------------------------------
 
-module SearchService_Iface where
+module SummarizationService_Client(summarize,getCapabilities) where
+import Service_Client
+import qualified Data.IORef as R
 import Prelude (($), (.), (>>=), (==), (++))
 import qualified Prelude as P
 import qualified Control.Exception as X
@@ -41,14 +43,42 @@ import qualified Communication_Types
 import qualified Services_Types
 import qualified Structure_Types
 import qualified Uuid_Types
-import qualified Metadata_Types
-import qualified Entities_Types
 
 
-import Search_Types
-
-import Service_Iface
-class Service_Iface a => SearchService_Iface a where
-  search :: a -> SearchQuery -> P.IO SearchResult
-  getCapabilities :: a -> P.IO (Vector.Vector SearchCapability)
-  getCorpora :: a -> P.IO (Vector.Vector LT.Text)
+import Summarization_Types
+import SummarizationService
+seqid = R.newIORef 0
+summarize (ip,op) arg_query = do
+  send_summarize op arg_query
+  recv_summarize ip
+send_summarize op arg_query = do
+  seq <- seqid
+  seqn <- R.readIORef seq
+  T.writeMessageBegin op ("summarize", T.M_CALL, seqn)
+  write_Summarize_args op (Summarize_args{summarize_args_query=arg_query})
+  T.writeMessageEnd op
+  T.tFlush (T.getTransport op)
+recv_summarize ip = do
+  (fname, mtype, rseqid) <- T.readMessageBegin ip
+  M.when (mtype == T.M_EXCEPTION) $ do { exn <- T.readAppExn ip ; T.readMessageEnd ip ; X.throw exn }
+  res <- read_Summarize_result ip
+  T.readMessageEnd ip
+  P.maybe (P.return ()) X.throw (summarize_result_ex res)
+  P.return $ summarize_result_success res
+getCapabilities (ip,op) = do
+  send_getCapabilities op
+  recv_getCapabilities ip
+send_getCapabilities op = do
+  seq <- seqid
+  seqn <- R.readIORef seq
+  T.writeMessageBegin op ("getCapabilities", T.M_CALL, seqn)
+  write_GetCapabilities_args op (GetCapabilities_args{})
+  T.writeMessageEnd op
+  T.tFlush (T.getTransport op)
+recv_getCapabilities ip = do
+  (fname, mtype, rseqid) <- T.readMessageBegin ip
+  M.when (mtype == T.M_EXCEPTION) $ do { exn <- T.readAppExn ip ; T.readMessageEnd ip ; X.throw exn }
+  res <- read_GetCapabilities_result ip
+  T.readMessageEnd ip
+  P.maybe (P.return ()) X.throw (getCapabilities_result_ex res)
+  P.return $ getCapabilities_result_success res

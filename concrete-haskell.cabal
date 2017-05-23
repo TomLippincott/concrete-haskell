@@ -36,11 +36,31 @@ library
                     , Situations_Types
                     , Spans_Types
                     , Structure_Types
+                    , Summarization_Types
                     , Twitter_Types
                     , Uuid_Types
+                    , SearchService
+                    , SearchService_Client
+                    , SearchService_Iface
+                    , Service
+                    , Service_Client
+                    , Service_Iface
+                    , AnnotateCommunicationService
+                    , AnnotateCommunicationService_Client
+                    , AnnotateCommunicationService_Iface
+                    , FetchCommunicationService
+                    , FetchCommunicationService_Client
+                    , FetchCommunicationService_Iface
+                    , StoreCommunicationService
+                    , StoreCommunicationService_Client
+                    , StoreCommunicationService_Iface
+
+-- ResultsServer, ActiveLearnerClient, ActiveLearnerServer, Feedback, Summarization, SearchProxy
+                                        
+                                        
                      
   build-depends:       base >= 4.6 && < 5
-                     , thrift >= 0.9.3
+                     , thrift == 0.10.0
                      , text
                      , unordered-containers
                      , QuickCheck
@@ -50,3 +70,20 @@ library
                      , containers
                      
   default-language:    Haskell2010
+  default-extensions:  DuplicateRecordFields
+
+executable ingest_json
+  main-is:        IngestJson.hs
+  hs-source-dirs: utils
+  build-depends:  base >= 4.6 && < 5
+                , megaparsec
+                , bytestring
+                , text
+                , concrete-haskell
+                , optparse-applicative
+                , thrift
+                , containers
+                
+  default-language:    Haskell2010
+  default-extensions:  DuplicateRecordFields
+  

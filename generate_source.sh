@@ -1,15 +1,14 @@
 #!/bin/bash
 
-if [ $# != 2 ]
+if [ $# != 1 ]
 then
-    echo "Two arguments needed: path to concrete/thrift, and concrete-services/thrift."
+    echo "Argument needed: path to concrete/thrift."
     exit 1
 fi
 
 mkdir -p thrift
 
 cp ${1}/*thrift thrift
-cp ${2}/*thrift thrift
 
 echo > concrete.thrift
 for x in thrift/*thrift
@@ -19,11 +18,15 @@ do
 done
 
 thrift -out src/ -r --gen hs -I thrift concrete.thrift
+#rm src/*Client.hs
+#rm src/Summariz*_Iface*
+#rm src/*Service.hs
+#rm src/SummarizationService*
 
 rm -rf thrift concrete.thrift
 
-cat src/Structure_Types.hs | perl -pe '$_=~s/\-1,/\(\-1\),/g;' > temp.hs
-mv temp.hs src/Structure_Types.hs
+#cat src/Structure_Types.hs | perl -pe '$_=~s/\-1,/\(\-1\),/g;' > temp.hs
+#mv temp.hs src/Structure_Types.hs
 
 mkdir -p src/Data
 
