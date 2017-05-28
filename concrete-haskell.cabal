@@ -68,10 +68,17 @@ library
                      , hashable
                      , bytestring
                      , containers
-                     
+                     , uuid
+                     , tar
+                     , zlib
+                     , time
+                     , filepath
+                     , process
+                     , directory                                          
   default-language:    Haskell2010
   default-extensions:  DuplicateRecordFields
-
+  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
+  
 executable ingest_json
   main-is:        IngestJson.hs
   hs-source-dirs: utils
@@ -81,9 +88,34 @@ executable ingest_json
                 , text
                 , concrete-haskell
                 , optparse-applicative
-                , thrift
                 , containers
-                
+                , filepath
+                , process
+                , directory
+                , vector
+                , mtl
+                , zlib                                
   default-language:    Haskell2010
   default-extensions:  DuplicateRecordFields
-  
+  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
+
+
+executable inspect_communications
+  main-is:        InspectCommunication.hs
+  hs-source-dirs: utils
+  build-depends:  base >= 4.6 && < 5
+                , megaparsec
+                , bytestring
+                , text
+                , concrete-haskell
+                , optparse-applicative
+                , containers
+                , filepath
+                , process
+                , directory
+                , vector
+                , mtl
+                , zlib                                
+  default-language:    Haskell2010
+  default-extensions:  DuplicateRecordFields
+  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
