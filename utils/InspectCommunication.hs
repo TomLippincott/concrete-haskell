@@ -24,14 +24,14 @@ parameters = Parameters
                            )
 
 showSection :: T.Text -> C.Section -> String
-showSection t s = "\t" ++ ((T.unpack . fromJust . C.section_label) s) ++ "--->" ++ t'
+showSection t s = "\t" ++ ((T.unpack . fromJust . C.section_label) s) ++ " " ++ (T.unpack $ C.section_kind s) ++ "--->" ++ t'
   where
     C.TextSpan s' e' = (fromJust . C.section_textSpan) s
     t' = substr t (fromIntegral s') (fromIntegral e')
 
 showCommunication :: C.Communication -> String
-showCommunication c = (T.unpack $ (C.communication_id c)) ++ "\n" ++ (intercalate "\n" sects) ++ "\n"
-  where
+showCommunication c = (T.unpack $ (C.communication_id c)) ++ " " ++ (T.unpack $ C.communication_type c) ++ "\n" ++ (intercalate "\n" sects) ++ "\n"
+  where    
     ss = concat $ map V.toList (maybeToList (C.communication_sectionList c))
     t = (fromJust . C.communication_text) c
     sects = map (showSection t) ss

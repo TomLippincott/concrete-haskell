@@ -35,20 +35,21 @@ import System.FilePath (takeFileName, (</>), (<.>))
 import Data.Either (rights)
 import Control.Monad (liftM)
 import Data.Foldable (foldr)
-
+import System.IO (Handle)
+  
 getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
   return $ UUID uuid
 
-writeCommunications :: String -> [Communication] -> IO ()
+writeCommunications :: Handle -> [Communication] -> IO ()
 writeCommunications out cs = do
-  let tarPath = (dropTarSuffix . takeFileName) out
+  let tarPath = "comms" -- (dropTarSuffix . takeFileName) out
   texts <- sequence [commToString c | c <- cs]
   let names = rights [Tar.toTarPath False (tarPath </> ((T.unpack . C.communication_id) c) <.> "comm") | c <- cs]
       entries = [Tar.fileEntry n t|(n, t) <- L.zip names texts]
       t = Tar.write entries
-  (BS.writeFile out . GZip.compress) t
+  (BS.hPutStr out . GZip.compress) t
 
 readCommunications :: String -> IO [Communication]
 readCommunications f = do

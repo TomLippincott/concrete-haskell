@@ -1,5 +1,5 @@
 name:                concrete-haskell
-version:             0.1.0.4
+version:             0.1.0.6
 synopsis:            Library for the Concrete data format.
 description:         Library for the Concrete data format.
 homepage:            https://github.com/hltcoe
@@ -11,10 +11,10 @@ copyright:           2016
 category:            Data
 build-type:          Simple
 cabal-version:       >=1.10
-
+             
 library
   hs-source-dirs:     src
-  exposed-modules:    Data.Concrete, Data.Concrete.Utils
+  exposed-modules:    Data.Concrete, Data.Concrete.Utils, Data.Concrete.Parsers.JSON, Data.Concrete.Parsers.JSON.Megaparsec, Data.Concrete.Parsers.JSON.Attoparsec
   other-modules:      Communication_Types
                     , Access_Types
                     , Annotate_Types
@@ -74,10 +74,15 @@ library
                      , time
                      , filepath
                      , process
-                     , directory                                          
+                     , directory
+                     , attoparsec
+                     , megaparsec
+                     , scientific
   default-language:    Haskell2010
-  default-extensions:  DuplicateRecordFields
-  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
+  default-extensions:  DuplicateRecordFields, RecordWildCards
+--  ghc-options:         -threaded -rtsopts -with-rtsopts=-p -with-rtsopts=-N
+--  ghc-options: -prof -fprof-auto -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
+--  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
   
 executable ingest_json
   main-is:        IngestJson.hs
@@ -94,17 +99,15 @@ executable ingest_json
                 , directory
                 , vector
                 , mtl
-                , zlib                                
+                , zlib
   default-language:    Haskell2010
   default-extensions:  DuplicateRecordFields
-  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
 
 
 executable inspect_communications
   main-is:        InspectCommunication.hs
   hs-source-dirs: utils
   build-depends:  base >= 4.6 && < 5
-                , megaparsec
                 , bytestring
                 , text
                 , concrete-haskell
@@ -114,8 +117,6 @@ executable inspect_communications
                 , process
                 , directory
                 , vector
-                , mtl
                 , zlib                                
   default-language:    Haskell2010
   default-extensions:  DuplicateRecordFields
-  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10

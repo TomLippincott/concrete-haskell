@@ -1,16 +1,16 @@
 flags: {}
-setup-info:
-  ghc:
-    linux64-nopie:
-      8.2.0.20170507:
-        url: https://downloads.haskell.org/~ghc/8.2.1-rc2/ghc-8.2.0.20170507-x86_64-deb8-linux.tar.xz
-        sha1: ff886437c1d2ddfa5686d6c9efb0819a957c3dde
-        content-length: 141011788
-    linux64:
-      8.2.0.20170507:
-        url: https://downloads.haskell.org/~ghc/8.2.1-rc2/ghc-8.2.0.20170507-x86_64-deb8-linux.tar.xz
-        sha1: ff886437c1d2ddfa5686d6c9efb0819a957c3dde
-        content-length: 141011788
+# setup-info:
+#   ghc:
+#     linux64-nopie:
+#       8.2.0.20170507:
+#         url: https://downloads.haskell.org/~ghc/8.2.1-rc2/ghc-8.2.0.20170507-x86_64-deb8-linux.tar.xz
+#         sha1: ff886437c1d2ddfa5686d6c9efb0819a957c3dde
+#         content-length: 141011788
+#     linux64:
+#       8.2.0.20170507:
+#         url: https://downloads.haskell.org/~ghc/8.2.1-rc2/ghc-8.2.0.20170507-x86_64-deb8-linux.tar.xz
+#         sha1: ff886437c1d2ddfa5686d6c9efb0819a957c3dde
+#         content-length: 141011788
 
 extra-deps:
   - QuickCheck-2.9.2
@@ -29,7 +29,6 @@ extra-deps:
   - split-0.2.3.2
   - tf-random-0.5
   - mtl-2.2.1
-  - parsec-3.1.11
   - scientific-0.3.4.12
   - integer-logarithms-1.0.1
   - megaparsec-5.3.0
@@ -50,8 +49,10 @@ extra-deps:
   - entropy-0.3.7
   - network-info-0.2.0.8
   - uuid-types-1.0.3
-  
-compiler-check: match-exact
-compiler: ghc-8.2.0.20170507
-resolver: ghc-8.2.0.20170507
+  - Cabal-1.24.2.0
+
+#compiler-check: match-exact
+#compiler: ghc-8.2.0.20170507
+#resolver: ghc-8.2.0.20170507
+resolver: lts-8.15
 allow-newer: true
