@@ -22,13 +22,20 @@ import Data.Attoparsec.Text.Lazy ( eitherResult
                                  , count
                                  , digit
                                  , letter
+                                 , match
                                  )
+import Data.Concrete (default_Communication)
 
-fromText t = case eitherResult $ parse arrayP t of
-               Right r -> Right r
+fromText t = case eitherResult $ parse arrayOfObjectsP t of
+               Right r -> Right [("", []) | _ <- r]
                Left e -> Left (show e)
 
-jsonP :: Parser JSON
+arrayOfObjectsP = brackets (topLevelObjectP `sepBy` comma)
+
+topLevelObjectP = do
+  (s, o) <- match objectP
+  return ("", [])
+
 jsonP = skipSpace >> choice [stringP, nullP, numberP, boolP, arrayP, objectP] >>= (\x -> skipSpace >> return x)
 
 nullP = string "null" >> return JNull

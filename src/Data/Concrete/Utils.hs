@@ -44,7 +44,7 @@ getUUID = do
 
 writeCommunications :: Handle -> [Communication] -> IO ()
 writeCommunications out cs = do
-  let tarPath = "comms" -- (dropTarSuffix . takeFileName) out
+  let tarPath = "comms"
   texts <- sequence [commToString c | c <- cs]
   let names = rights [Tar.toTarPath False (tarPath </> ((T.unpack . C.communication_id) c) <.> "comm") | c <- cs]
       entries = [Tar.fileEntry n t|(n, t) <- L.zip names texts]

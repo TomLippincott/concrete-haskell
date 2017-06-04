@@ -21,13 +21,21 @@ import Text.Megaparsec ( parseErrorPretty
                        , choice
                        , sepBy
                        , between
+                       , match
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
+import Data.Concrete (default_Communication)
 
-fromText t = case runParser arrayP "JSON data" t of
-               Right x -> Right x
-               Left e -> Left (parseErrorPretty e)
+fromText t = case runParser arrayOfObjectsP "JSON data" t of
+               Right r -> Right [("", []) | _ <- r]
+               Left e -> Left (show e)
+
+arrayOfObjectsP = brackets (topLevelObjectP `sepBy` comma)
+
+topLevelObjectP = do
+  (s, o) <- match objectP
+  return (s, [])
 
 jsonP :: Parser JSON
 jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]

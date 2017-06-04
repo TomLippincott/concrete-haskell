@@ -7,14 +7,20 @@ license:             GPL
 license-file:        LICENSE
 author:              Thomas Lippincott
 maintainer:          tom@cs.jhu.edu
-copyright:           2016
+copyright:           2017
 category:            Data
 build-type:          Simple
 cabal-version:       >=1.10
              
 library
   hs-source-dirs:     src
-  exposed-modules:    Data.Concrete, Data.Concrete.Utils, Data.Concrete.Parsers.JSON, Data.Concrete.Parsers.JSON.Megaparsec, Data.Concrete.Parsers.JSON.Attoparsec
+  exposed-modules:    Data.Concrete
+                    , Data.Concrete.Utils
+                    , Data.Concrete.Parsers                    
+                    , Data.Concrete.Parsers.JSON
+                    , Data.Concrete.Parsers.JSON.Megaparsec
+                    , Data.Concrete.Parsers.JSON.Attoparsec
+                    , Data.Concrete.Parsers.CONLL.Attoparsec                    
   other-modules:      Communication_Types
                     , Access_Types
                     , Annotate_Types
@@ -84,11 +90,10 @@ library
 --  ghc-options: -prof -fprof-auto -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
 --  ghc-options: -O2 -fdicts-cheap -funbox-strict-fields -fmax-simplifier-iterations=10
   
-executable ingest_json
-  main-is:        IngestJson.hs
+executable ingest_communications
+  main-is:        IngestCommunications.hs
   hs-source-dirs: utils
   build-depends:  base >= 4.6 && < 5
-                , megaparsec
                 , bytestring
                 , text
                 , concrete-haskell
