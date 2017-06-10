@@ -1,3 +1,5 @@
 *~
 .stack-work
+.git
 dist
+stack.yaml
