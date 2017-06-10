@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
-module Data.Concrete.Parsers.CONLL
+module Data.Concrete.Parsers.CSV
        ( arrayOfObjectsP
        ) where
 

@@ -1,16 +1,22 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-|
+This module is designed to enable converting arbitrary formats
+described as simple context-free (or even context-sensitive)
+grammars into Concrete Communication objects.
+
+UUIDs are generated when the Communications are serialized,
+and so the module avoids the need for any impure computations
+until that point.
+-}
 module Data.Concrete.Parsers
        ( communicationParsers
-       , ProtoSection(..)
-       , ProtoCommunication
-       , CommunicationParser
-       , toCommunications
+       , ingest
        ) where
 
 import qualified Data.Map as Map
 import Data.Vector (fromList, Vector)
 import Data.Map (Map)
-import Data.Concrete.Utils (createAnnotationMetadata, getUUID)
+import Data.Concrete.Utils (createAnnotationMetadata, getUUID, writeCommunication)
 import Data.Concrete ( default_Communication
                      , Communication(..)
                      , default_Section
@@ -24,54 +30,38 @@ import Data.Concrete ( default_Communication
                      , default_TextSpan
                      , TextSpan(..)
                      )
-
+import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
+import Control.Monad.State (runStateT)
 import Data.ByteString.Lazy (ByteString)
 import Data.Text.Lazy (Text, pack)
-import qualified Data.Concrete.Parsers.JSON.Megaparsec as M
-import qualified Data.Concrete.Parsers.JSON.Attoparsec as A
-import qualified Data.Concrete.Parsers.CONLL.Attoparsec as C
+import Data.Concrete.Types
+import Data.Concrete.Parsers.Types
+import Control.Monad.IO.Class (liftIO)
+import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos)
+import qualified Data.List.NonEmpty as NE
+import Data.Vector (Vector, fromList, snoc, empty)
+import qualified Data.Concrete.Parsers.JSON as JSON
+import qualified Data.Concrete.Parsers.CONLL as CONLL
+import qualified Data.Concrete.Parsers.HTML as HTML
+import qualified Data.Concrete.Parsers.XML as XML
+import qualified Data.Concrete.Parsers.CSV as CSV
+import qualified Data.Concrete.Parsers.Email as Email
 
-data ProtoSection = ProtoSection { start :: Int
-                                 , end :: Int
-                                 , label :: String
-                                 , kind :: String
-                                 }
-                    
-type ProtoCommunication = (Text, [ProtoSection])
 
-type CommunicationParser = (Text -> Either String [ProtoCommunication])
-
-communicationParsers :: Map String (String, CommunicationParser)
-communicationParsers = Map.fromList [ ("AJSON", ("JSON array of arbitrary objects (Attoparsec)", A.fromText))
-                                    , ("MJSON", ("JSON array of arbitrary objects (Megaparsec)", M.fromText))
-                                    , ("CONLL", ("CONLL format", C.fromText))
-                                    , ("PENN", ("PENN Treebank format", C.fromText))
+communicationParsers = Map.fromList [ ("JSON", ("JSON array of arbitrary objects", JSON.arrayOfObjectsP))
+                                    -- , ("CONLL", ("CONLL format", CONLL.arrayOfObjectsP))
+                                    -- , ("HTML", ("HTML format", HTML.arrayOfObjectsP))
+                                    -- , ("XML", ("XML format", XML.arrayOfObjectsP))
+                                    -- , ("CSV", ("CSV format", CSV.arrayOfObjectsP))
+                                    -- , ("Email", ("Email format", Email.arrayOfObjectsP))                                    
                                     ]
 
-toCommunications :: [ProtoCommunication] -> IO [Communication]
-toCommunications ps = sequence [toCommunication i p | (i, p) <- zip [1..] ps]
-
-toCommunication :: Int -> ProtoCommunication -> IO Communication
-toCommunication i (t, ss) = do
-  sections <- toSections ss
-  uuid <- getUUID
-  metadata <- createAnnotationMetadata "concrete-haskell ingester"
-  return $ default_Communication { communication_text=Just t
-                                 , communication_id=(pack . show) i
-                                 , communication_uuid=uuid
-                                 , communication_type=pack "test"
-                                 , communication_sectionList=(Just . fromList) sections
-                                 , communication_metadata=metadata
-                                 }
-
-toSections :: [ProtoSection] -> IO [Section]
-toSections ps = sequence $ map toSection ps
-
-toSection :: ProtoSection -> IO Section
-toSection ProtoSection{..} = do
-  uuid <- getUUID
-  return $ default_Section { section_uuid=uuid
-                           , section_kind=pack kind
-                           , section_label=(Just . pack) label
-                           , section_textSpan=Just $ TextSpan (fromIntegral start) (fromIntegral end)
-                           }
+ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()
+ingest a p t cs i ct= do
+  let s = State { stateInput=t
+                , statePos=NE.fromList $ [initialPos "JSON"]
+                , stateTokensProcessed=0
+                , stateTabWidth=unsafePos 8
+                }
+  runStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct)
+  return ()

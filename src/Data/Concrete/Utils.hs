@@ -3,14 +3,17 @@ module Data.Concrete.Utils
        (
          getUUID
        , createAnnotationMetadata
-       , readCommunications
-       , writeCommunications       
+       , readCommunicationsFromBytes
+       , writeCommunications
+       , writeCommunication
+       , showCommunication
        ) where
 
 import GHC.Generics
 import qualified Data.Concrete as C
-import Data.Concrete (Communication(..), UUID(..), default_Communication)
+import Data.Concrete (Communication(..), UUID(..), default_Communication, read_Communication)
 import Data.Text
+import Data.Maybe (fromJust, maybeToList)
 import Data.ByteString.Lazy
 import Data.Map
 import Data.UUID.V4 (nextRandom)
@@ -36,7 +39,8 @@ import Data.Either (rights)
 import Control.Monad (liftM)
 import Data.Foldable (foldr)
 import System.IO (Handle)
-  
+import qualified Data.Vector as V
+
 getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
@@ -51,12 +55,26 @@ writeCommunications out cs = do
       t = Tar.write entries
   (BS.hPutStr out . GZip.compress) t
 
-readCommunications :: String -> IO [Communication]
-readCommunications f = do
-  t <- (liftM GZip.decompress . BS.readFile) f
-  let es = Tar.read t
-      Right cs = Tar.foldlEntries (\x y -> ((stringToComm . entryToString . Tar.entryContent) y):x) ([] :: [IO Communication]) es
-  sequence cs
+writeCommunication :: Handle -> Communication -> IO ()
+writeCommunication out c = do
+  t <- commToString c
+  (BS.hPutStr out . GZip.compress) t
+
+readCommunicationsFromBytes :: BS.ByteString -> IO [Communication]
+readCommunicationsFromBytes t = do
+  --t <- (liftM GZip.decompress . BS.readFile) f
+  transport <- newTString
+  fillBuf (getRead transport) t
+  let iproto = CompactProtocol transport
+  readCommunication' iproto []
+  where
+    readCommunication' pr cs = do
+      o <- tIsOpen $ getTransport pr      
+      case o of
+        True -> do
+          c <- read_Communication pr
+          readCommunication' pr $ c:cs
+        False -> return cs
 
 entryToString :: Tar.EntryContent -> BS.ByteString
 entryToString (Tar.NormalFile s _) = s
@@ -66,18 +84,26 @@ data TString = TString ReadBuffer WriteBuffer
 getWrite :: TString -> WriteBuffer
 getWrite (TString r w) = w
 
+getRead :: TString -> ReadBuffer
+getRead (TString r w) = r          
+
 newTString = do
   w <- newWriteBuffer
   r <- newReadBuffer
   return $ TString r w
 
 instance Transport TString where
-    tIsOpen = const $ return False
-    tClose  = const $ return ()
-    tRead (TString r w) i = readBuf r i --return ""
-    tPeek (TString r w) = peekBuf r --const $ return Nothing
-    tWrite (TString r w) bs = writeBuf w bs --return ()
-    tFlush (TString r w) = flushBuf w >> return () --const$ return ()
+    tIsOpen (TString r w) = do
+      p <- peekBuf r
+      case p of
+        Nothing -> return False
+        _ -> return True
+    tClose (TString r w) = case peekBuf r of
+                             _ -> return ()
+    tRead (TString r w) i = readBuf r i
+    tPeek (TString r w) = peekBuf r
+    tWrite (TString r w) bs = writeBuf w bs
+    tFlush (TString r w) = flushBuf w >> return ()
   
 commToString :: Communication -> IO BS.ByteString
 commToString c = do
@@ -104,3 +130,23 @@ createAnnotationMetadata s = do
   return C.default_AnnotationMetadata { C.annotationMetadata_tool=T.pack s
                                       , C.annotationMetadata_timestamp=time
                                       }
+
+showSection :: T.Text -> C.Section -> T.Text
+showSection t s = T.concat ["\t", ((fromJust . C.section_label) s), " ", (C.section_kind s), "--->", t']
+  where
+    C.TextSpan s' e' = (fromJust . C.section_textSpan) s
+    t' = substr t (fromIntegral s') (fromIntegral e')
+
+substr :: T.Text -> Int -> Int -> T.Text
+substr t s e = res
+  where
+    (_, start) = T.splitAt (fromIntegral s) t    
+    res = T.take (fromIntegral $ e - s) start
+
+showCommunication :: Communication -> T.Text
+showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n", T.intercalate "\n" sects, "\n"]
+  where    
+    ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
+    t = (fromJust . C.communication_text) c
+    sects = L.map (showSection t) ss
+

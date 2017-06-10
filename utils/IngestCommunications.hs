@@ -3,16 +3,18 @@ module Main (main) where
 
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
-import Data.Map (toList, (!))
+import Data.Map (toList, (!), keys)
 import Data.Monoid ((<>))
+import Data.List (intercalate)
 import Control.Monad (void, join, liftM)
 import Data.Text.Lazy (Text, unpack, take)
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
 import System.FilePath (takeExtension)
 import qualified Codec.Compression.GZip as GZip
-import Data.Concrete.Parsers (communicationParsers, toCommunications)
-import Data.Concrete.Utils (writeCommunications)
+import Data.Concrete.Utils (writeCommunication)
+import Data.Concrete.Parsers.Types (CommunicationParser)
+import Data.Concrete.Parsers (communicationParsers, ingest)
 import Options.Applicative ( Parser(..)
                            , option
                            , auto
@@ -50,7 +52,7 @@ parameters = Parameters
              <*> (optional $ strOption (short 'o'
                                          <> long "output"
                                          <> metavar "OUTPUT_FILE"
-                                         <> help "Tar archive of Concrete Communications"
+                                         <> help "Where to write the Concrete Communications"
                                        )
                  )
              <*> strOption (short 't'
@@ -70,11 +72,9 @@ parameters = Parameters
                            ))
              <*> strOption (short 'f'
                             <> long "format"
-                            <> help "Input format"
+                            <> help ("Input format: (" ++ ((intercalate "|" . keys) communicationParsers) ++ ")")
                            )
                       
-                      
-
 main = do
   ps <- execParser opts
   ofd <- case outputFile ps of
@@ -86,16 +86,11 @@ main = do
       _ -> BS.readFile f
     Nothing -> BS.hGetContents stdin
   let (_, p) = communicationParsers ! (format ps)
-      cs = p (decodeUtf8 ih)
-  cs' <- case cs of
-           Right cs -> toCommunications cs
-           Left e -> error e
   oh <- case outputFile ps of
     Just f -> openFile f WriteMode
     Nothing -> return stdout
-           
-  hPutStrLn stderr $ "Parsed and serialized " ++ (show $ length cs') ++ " Communications"
-  writeCommunications oh cs'
+  cs <- ingest (writeCommunication oh) p (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)
+  return ()
   where
     opts = info (helper <*> parameters)
            ( fullDesc

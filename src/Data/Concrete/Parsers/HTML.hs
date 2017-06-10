@@ -1,11 +1,12 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
-module Data.Concrete.Parsers.CONLL
+{-# LANGUAGE DeriveGeneric, OverloadedStrings  #-}
+module Data.Concrete.Parsers.HTML
        ( arrayOfObjectsP
        ) where
 
+import Data.Maybe (fromJust)
 import Data.List (intercalate)
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
-import Data.Concrete.Parsers.Utils (communicationRule)
+import Data.Concrete.Parsers.Utils (communicationRule, Located(..))
 import Data.Scientific (scientific, Scientific(..))
 import Data.Text.Lazy (pack, Text)
 import Data.Functor (($>))
@@ -36,36 +37,25 @@ import Text.Megaparsec ( parseErrorPretty
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
-import Data.Concrete (default_Communication, Communication(..))
+import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
-  
-arrayOfObjectsP :: ParsecT Dec Text (S.StateT Bookkeeper IO) ()
+
+arrayOfObjectsP :: CommunicationParser ()
 arrayOfObjectsP = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
 
-jsonP = sectionRule id jsonP'
-
-jsonP' = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
+jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
   
-nullP = symbol' "null" >> return ()
+nullP = sectionRule id $ symbol' "null" >> return ()
   
-boolP = (symbol' "true" <|> symbol' "false") >> return ()
+boolP = sectionRule id $ (symbol' "true" <|> symbol' "false") >> return ()
   
-numberP = signed space number >> return ()
+numberP = sectionRule id $ signed space number >> return ()
 
-stringP = pack <$> stringLiteral >> return ()
+stringP = sectionRule (adjustTextSpan 1 (-1)) $ pack <$> stringLiteral >> return ()
 
-objectP = Map.fromList <$> braces (pairP `sepBy` comma) >> return ()
-
-arrayEntryP = do
-  bs@(Bookkeeper{..}) <- S.get
-  let p = (read $ head path) :: Int
-  S.put $ bs { path=(show (p + 1)):(tail path) } 
-  jsonP
-  return ()
-  
 escapedChar = do
   char '\\'
   choice [ char '\"' $> '\"'
@@ -85,6 +75,13 @@ stringLiteral = lexeme' $ do
   char '\"'
   (escapedChar <|> anyChar) `manyTill` char '\"'
 
+arrayEntryP = do
+  bs@(Bookkeeper{..}) <- S.get
+  let p = (read $ head path) :: Int
+  S.modify' (\ bs -> bs { path=(show (p + 1)):(tail path) } )
+  jsonP
+  return ()
+
 arrayP = do
   S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=(show (-1)):path })
   c <- brackets (arrayEntryP `sepBy` comma)
@@ -98,6 +95,8 @@ pairP = do
   value <- jsonP
   S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=tail path})
   return (key, value)
+
+objectP = sectionRule id $ Map.fromList <$> braces (pairP `sepBy` comma) >> return ()
 
 lexeme' = lexeme space
 symbol' = symbol space
