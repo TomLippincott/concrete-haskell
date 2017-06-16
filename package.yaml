@@ -1,0 +1,85 @@
+name: concrete-haskell
+version: '0.1.0.8'
+synopsis: Library for the Concrete data format.
+description: Concrete is a Thrift-based data specification designed for Natural Language
+  Processing (NLP) applications.  This library provides a Haskell interface to code
+  generated from the latest release of Concrete.  It also has a number of utilities
+  for converting various formats (JSON, CSV, XML, etc) to Concrete Communication objects.
+category: Data
+author: Thomas Lippincott
+maintainer: tom@cs.jhu.edu
+copyright: '2017'
+license: GPL
+homepage: https://github.com/hltcoe
+dependencies:
+- text
+- bytestring
+- containers
+- zlib
+- filepath
+library:
+  source-dirs: src
+  default-extensions:
+  - DuplicateRecordFields
+  - RecordWildCards
+  exposed-modules:
+  - Data.Concrete
+  - Data.Concrete.Types
+  - Data.Concrete.Utils
+  - Data.Concrete.Parsers
+  - Data.Concrete.Parsers.Types
+  - Data.Concrete.Parsers.Utils
+  - Data.Concrete.Parsers.JSON
+  - Data.Concrete.Parsers.CONLL
+  - Data.Concrete.Parsers.Email
+  - Data.Concrete.Parsers.XML
+  - Data.Concrete.Parsers.CSV
+  - Data.Concrete.Parsers.HTML
+  - Data.Concrete.Parsers.PTB
+  dependencies:
+  - base >=4.6 && <5
+  - thrift ==0.10.0
+  - unordered-containers
+  - QuickCheck
+  - vector
+  - hashable
+  - uuid
+  - tar
+  - time
+  - process
+  - directory
+  - attoparsec
+  - megaparsec >=5.3.0
+  - scientific
+  - mtl
+executables:
+  inspect_communications:
+    main: InspectCommunication.hs
+    source-dirs: utils
+    default-extensions:
+    - DuplicateRecordFields
+    dependencies:
+    - base >=4.6 && <5
+    - concrete-haskell
+    - optparse-applicative
+    - process
+    - directory
+    - vector
+  ingest_communications:
+    main: IngestCommunications.hs
+    source-dirs: utils
+    default-extensions:
+    - DuplicateRecordFields
+    dependencies:
+    - base >=4.6 && <5
+    - concrete-haskell
+    - optparse-applicative
+    - process
+    - directory
+    - vector
+tests:
+  unit_tests:
+    main: tests/UnitTests.hs
+    dependencies:
+    - base
+    - concrete-haskell
