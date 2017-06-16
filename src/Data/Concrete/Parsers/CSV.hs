@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.CSV
-       ( arrayOfObjectsP
+       ( parser
        ) where
 
 import Data.List (intercalate)
@@ -33,6 +33,10 @@ import Text.Megaparsec ( parseErrorPretty
                        , runParserT'
                        , State(..)
                        , getParserState
+                       , eol
+                       , noneOf
+                       , eof
+                       , many
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
@@ -41,66 +45,23 @@ import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
-  
-arrayOfObjectsP :: ParsecT Dec Text (S.StateT Bookkeeper IO) ()
-arrayOfObjectsP = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
 
-jsonP = sectionRule id jsonP'
-
-jsonP' = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
-  
-nullP = symbol' "null" >> return ()
-  
-boolP = (symbol' "true" <|> symbol' "false") >> return ()
-  
-numberP = signed space number >> return ()
-
-stringP = pack <$> stringLiteral >> return ()
-
-objectP = Map.fromList <$> braces (pairP `sepBy` comma) >> return ()
-
-arrayEntryP = do
-  bs@(Bookkeeper{..}) <- S.get
-  let p = (read $ head path) :: Int
-  S.put $ bs { path=(show (p + 1)):(tail path) } 
-  jsonP
+parser :: Char -> CommunicationParser ()
+parser d = do
+  fs <- header d
+  withFields fs d
+  eof
   return ()
+  --row d fields `sepBy` eol
+  --return ()
+
+withFields :: [Text] -> Char -> CommunicationParser ()
+withFields fs d = (communicationRule id (row d fs)) `sepBy` (char '\n') >> return ()
+
   
-escapedChar = do
-  char '\\'
-  choice [ char '\"' $> '\"'
-         , char '\\' $> '\\'
-         , char '/'  $> '/'
-         , char 'n'  $> '\n'
-         , char 'r'  $> '\r'
-         , char 'f'  $> '\f'
-         , char 't'  $> '\t'
-         , char 'b'  $> '\b'
-         , unicodeEscape
-         ]
+--header :: Char -> CommunicationParser [String]
+header c = return []
 
-unicodeEscape = char 'u' >> count 4 hexDigitChar >>= (\code -> return $ toEnum (read ("0x" ++ code)))
-
-stringLiteral = lexeme' $ do 
-  char '\"'
-  (escapedChar <|> anyChar) `manyTill` char '\"'
-
-arrayP = do
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=(show (-1)):path })
-  c <- brackets (arrayEntryP `sepBy` comma)
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=tail path})
-  return ()
-
-pairP = do
-  key <- stringLiteral
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=key:path })
-  symbol' ":"
-  value <- jsonP
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=tail path})
-  return (key, value)
-
-lexeme' = lexeme space
-symbol' = symbol space
-brackets = between (symbol' "[") (symbol' "]")
-braces = between (symbol' "{") (symbol' "}")
-comma = symbol' ","
+--row :: Char -> [String] -> CommunicationParser ()
+row :: Char -> [Text] -> CommunicationParser ()
+row c fs = (many (noneOf ['\n'])) >> return ()

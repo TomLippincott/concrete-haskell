@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings  #-}
 module Data.Concrete.Parsers.JSON
-       ( arrayOfObjectsP
+       ( parser
        ) where
 
 import Data.Maybe (fromJust)
@@ -43,8 +43,8 @@ import qualified Control.Monad.Identity as I
 import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
 
-arrayOfObjectsP :: CommunicationParser ()
-arrayOfObjectsP = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
+parser :: CommunicationParser ()
+parser = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
 
 jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
   

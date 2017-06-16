@@ -26,8 +26,8 @@ substr t s e = T.unpack res
     res = T.take (fromIntegral $ e - s) start
 
 
-makeId :: [(Text, Text)] -> Text -> Text
-makeId ss i = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) i ss
+makeId :: [(Text, Text)] -> Text -> Int -> Text
+makeId ss i n = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) i (("", (pack . show) n):ss)
 
 communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
 communicationRule tr p = do
@@ -46,10 +46,10 @@ communicationRule tr p = do
       c = communication { communication_metadata=m
                         , communication_text=Just $ pack t
                         , communication_uuid=u
-                        , communication_id=makeId sectionVals commId
+                        , communication_id=makeId sectionVals commId commNum
                         , communication_sectionList=Just $ fromList sections'
                         }
-  put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[] }
+  put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[], commNum=commNum + 1 }
   liftIO $ action (tr c)
   return o
 

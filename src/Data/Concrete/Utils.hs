@@ -11,7 +11,7 @@ module Data.Concrete.Utils
 
 import GHC.Generics
 import qualified Data.Concrete as C
-import Data.Concrete (Communication(..), UUID(..), default_Communication, read_Communication)
+import Data.Concrete (Communication(..), Section(..), UUID(..), default_Communication, read_Communication)
 import Data.Text
 import Data.Maybe (fromJust, maybeToList)
 import Data.ByteString.Lazy
@@ -148,5 +148,5 @@ showCommunication c = T.concat [C.communication_id c, " ", C.communication_type 
   where    
     ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
     t = (fromJust . C.communication_text) c
-    sects = L.map (showSection t) ss
+    sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
 

@@ -25,6 +25,7 @@ data Bookkeeper = Bookkeeper { communication :: Communication
                              , contentSections :: [String]
                              , commId :: Text
                              , commType :: String
+                             , commNum :: Int
                              }
 
 -- | A 'CommunicationParser' is a stateful Megaparsec parser that, as it

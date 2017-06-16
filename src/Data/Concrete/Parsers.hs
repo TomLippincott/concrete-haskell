@@ -46,22 +46,24 @@ import qualified Data.Concrete.Parsers.HTML as HTML
 import qualified Data.Concrete.Parsers.XML as XML
 import qualified Data.Concrete.Parsers.CSV as CSV
 import qualified Data.Concrete.Parsers.Email as Email
+import qualified Data.Concrete.Parsers.PTB as PTB
 
 
-communicationParsers = Map.fromList [ ("JSON", ("JSON array of arbitrary objects", JSON.arrayOfObjectsP))
-                                    -- , ("CONLL", ("CONLL format", CONLL.arrayOfObjectsP))
-                                    -- , ("HTML", ("HTML format", HTML.arrayOfObjectsP))
-                                    -- , ("XML", ("XML format", XML.arrayOfObjectsP))
-                                    -- , ("CSV", ("CSV format", CSV.arrayOfObjectsP))
-                                    -- , ("Email", ("Email format", Email.arrayOfObjectsP))                                    
+communicationParsers = Map.fromList [ ("JSON", ("JSON array of arbitrary objects", JSON.parser))
+                                    --, ("CONLL", ("CONLL format", CONLL.parser))
+                                    -- , ("HTML", ("HTML format", HTML.parser))
+                                    -- , ("XML", ("XML format", XML.parser))
+                                    , ("CSV", ("CSV format", CSV.parser '\t'))
+                                    -- , ("Email", ("Email format", Email.parser))
+                                    , ("PTB", ("PENN Treebank format", PTB.parser))                                    
                                     ]
 
 ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()
-ingest a p t cs i ct= do
+ingest a p t cs i ct = do
   let s = State { stateInput=t
                 , statePos=NE.fromList $ [initialPos "JSON"]
                 , stateTokensProcessed=0
                 , stateTabWidth=unsafePos 8
                 }
-  runStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct)
+  runStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct 0)
   return ()
