@@ -1,12 +1,11 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings  #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module Data.Concrete.Parsers.JSON
        ( parser
        ) where
 
+import Control.Monad.State (State, get, put, modify, modify')
 import Data.Maybe (fromJust)
 import Data.List (intercalate)
-import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
-import Data.Concrete.Parsers.Utils (communicationRule, Located(..))
 import Data.Scientific (scientific, Scientific(..))
 import Data.Text.Lazy (pack, Text)
 import Data.Functor (($>))
@@ -34,27 +33,44 @@ import Text.Megaparsec ( parseErrorPretty
                        , runParserT'
                        , State(..)
                        , getParserState
+                       , eof
                        )
-
+import Control.Monad.IO.Class (liftIO)
 import Text.Megaparsec.Text.Lazy (Parser)
-import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
-import Data.Concrete.Types
-import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
+
+import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
+import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
+import Data.Concrete.Parsers.Utils ( communicationRule
+                                   , sectionRule
+                                   , pathArrayRule
+                                   , pathArrayEntryRule
+                                   , pathDictionaryRule
+                                   , pathDictionaryKeyRule
+                                   , Located(..)
+                                   , pushPathComponent
+                                   , popPathComponent
+                                   , modifyPathComponent
+                                   , incrementPathComponent
+                                   )
 
 parser :: CommunicationParser ()
-parser = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
+parser = brackets ((communicationRule id objectP) `sepBy` comma) >> eof >> return ()
 
 jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
-  
+
 nullP = sectionRule id $ symbol' "null" >> return ()
-  
+
 boolP = sectionRule id $ (symbol' "true" <|> symbol' "false") >> return ()
-  
+
 numberP = sectionRule id $ signed space number >> return ()
 
-stringP = sectionRule (adjustTextSpan 1 (-1)) $ pack <$> stringLiteral >> return ()
+stringP = stringPLiteral >> return ()
+
+stringPLiteral = lexeme' $ do 
+  char '\"'
+  sectionRule (adjustTextSpan 0 (-1)) ((escapedChar <|> anyChar) `manyTill` char '\"')
 
 escapedChar = do
   char '\\'
@@ -75,25 +91,20 @@ stringLiteral = lexeme' $ do
   char '\"'
   (escapedChar <|> anyChar) `manyTill` char '\"'
 
-arrayEntryP = do
-  bs@(Bookkeeper{..}) <- S.get
-  let p = (read $ head path) :: Int
-  S.modify' (\ bs -> bs { path=(show (p + 1)):(tail path) } )
+arrayEntryP = pathArrayEntryRule $ do
   jsonP
   return ()
 
-arrayP = do
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=(show (-1)):path })
+arrayP = pathArrayRule $ do
   c <- brackets (arrayEntryP `sepBy` comma)
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=tail path})
   return ()
 
 pairP = do
   key <- stringLiteral
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=key:path })
+  pushPathComponent key
   symbol' ":"
   value <- jsonP
-  S.modify' (\ bs@(Bookkeeper{..}) -> bs { path=tail path})
+  c <- popPathComponent
   return (key, value)
 
 objectP = sectionRule id $ Map.fromList <$> braces (pairP `sepBy` comma) >> return ()

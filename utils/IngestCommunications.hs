@@ -85,7 +85,7 @@ main = do
       ".gz" -> (liftM GZip.decompress . BS.readFile) f
       _ -> BS.readFile f
     Nothing -> BS.hGetContents stdin
-  let (_, p) = communicationParsers ! (format ps)
+  let (_, p, _, _) = communicationParsers ! (format ps)
   oh <- case outputFile ps of
     Just f -> openFile f WriteMode
     Nothing -> return stdout

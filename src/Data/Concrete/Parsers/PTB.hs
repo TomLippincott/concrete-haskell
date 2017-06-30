@@ -53,7 +53,9 @@ import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
 parser :: CommunicationParser ()
 parser = do
   space
-  some (lexeme' document)
+  some document
+  space
+  eof
   return ()
 
 type CS = CommunicationParser String
@@ -61,22 +63,17 @@ type CSS = CommunicationParser [String]
 type CC = CommunicationParser Char
 
 document :: CommunicationParser ()
-document = communicationRule id (parens (some sentence) >> eof)
+document = lexeme' $ communicationRule id (parens (some sentence)) >> return ()
 
-sentence :: CSS
-sentence = between (symbol' "(S") (symbol' ")") (some (lexeme' phrase))
+sentence = lexeme' $ between (symbol' "(S") (symbol' ")") (some phrase)
 
-phrase :: CS
-phrase = lexeme' $ parens ((lexeme' tag) >> (tag <|> phrase))
+phrase = lexeme' $ parens (tag >> some (tag <|> phrase)) >> return []
 
-tag :: CS
-tag = some nonSpace
+tag = lexicalItem
 
-lexicalItem :: CS
-lexicalItem = some $ nonSpace
+lexicalItem = lexeme' $ some notSpaceOrParen
 
-nonSpace :: CC
-nonSpace = satisfy (not . isSpace)
+notSpaceOrParen = satisfy (\c -> and [(not . isSpace) c, ('(' /= c), (')' /= c)])
 
 lexeme' = lexeme space
 symbol' = symbol space

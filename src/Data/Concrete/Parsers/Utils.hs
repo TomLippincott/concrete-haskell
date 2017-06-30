@@ -1,6 +1,14 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule
+                                   , pathDictionaryRule
+                                   , pathDictionaryKeyRule                                   
+                                   , pathArrayRule
+                                   , pathArrayEntryRule
+                                   , pushPathComponent
+                                   , popPathComponent
+                                   , modifyPathComponent
+                                   , incrementPathComponent
                                    , Located(..)
                                    ) where
 
@@ -12,12 +20,13 @@ import Text.Megaparsec (ParsecT, getParserState, stateTokensProcessed, match)
 import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)
 import qualified Data.Map as Map
-import Control.Monad.State (State, get, put)
+import Control.Monad.State (State, get, put, modify, modify')
 import Data.Concrete (default_Communication, Communication(..), default_Section, Section(..), default_TextSpan, TextSpan(..))
 import Data.Concrete.Utils (getUUID, createAnnotationMetadata)
 import Control.Monad.IO.Class (liftIO)
 import Data.Vector (Vector, fromList, snoc, empty, cons, toList)
 import Data.Maybe (fromJust)
+import Text.Printf (printf)
 
 substr :: T.Text -> Int -> Int -> String
 substr t s e = T.unpack res
@@ -25,12 +34,12 @@ substr t s e = T.unpack res
     (_, start) = T.splitAt (fromIntegral s) t    
     res = T.take (fromIntegral $ e - s) start
 
-
 makeId :: [(Text, Text)] -> Text -> Int -> Text
 makeId ss i n = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) i (("", (pack . show) n):ss)
 
 communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
 communicationRule tr p = do
+  --liftIO $ print "Starting Communication"
   offset <- (fromIntegral . stateTokensProcessed) <$> getParserState  
   (t, o) <- match p
   bs@(Bookkeeper {..}) <- get
@@ -50,8 +59,84 @@ communicationRule tr p = do
                         , communication_sectionList=Just $ fromList sections'
                         }
   put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[], commNum=commNum + 1 }
+  
+  --liftIO $ print "Ending Communication"
   liftIO $ action (tr c)
+  clearState
   return o
+
+clearState :: CommunicationParser ()
+clearState = do
+  bs <- get
+  let s = bs { communication=default_Communication { communication_sectionList=Just empty }
+             , sections=[]
+             , path=[]
+             }
+  put s
+  return ()
+
+--pathArrayRule :: CommunicationParser a -> CommunicationParser a
+--pathArrayRule p = p
+  
+pathArrayRule :: CommunicationParser a -> CommunicationParser a
+pathArrayRule p = do
+  pushPathComponent (show (-1))
+  r <- p
+  popPathComponent
+  return r
+
+-- pathArrayEntryRule :: CommunicationParser a -> CommunicationParser a
+-- pathArrayEntryRule p = p
+
+pathArrayEntryRule :: CommunicationParser a -> CommunicationParser a
+pathArrayEntryRule p = do
+  incrementPathComponent
+  p
+
+pathDictionaryRule :: CommunicationParser a -> CommunicationParser a
+pathDictionaryRule p = do
+  pushPathComponent "PLACEHOLDER"
+  (m, r) <- match p
+  t' <- popPathComponent
+  return r
+
+pathDictionaryKeyRule :: CommunicationParser String -> CommunicationParser String
+pathDictionaryKeyRule p = do
+  t' <- p
+  modifyPathComponent (\x -> t')
+  return ""
+
+pushPathComponent :: String -> CommunicationParser ()
+pushPathComponent s = do
+  Bookkeeper{..} <- get
+  --liftIO $ print ("starting component") -- , s, path)
+  modify (\ bs -> bs { path=s:path })
+  return ()
+
+popPathComponent :: CommunicationParser String
+popPathComponent = do
+  Bookkeeper{..} <- get
+  let (p:ps) = path
+  --liftIO $ print ("ending component", p) --, ps)
+  modify (\ bs -> bs { path=ps })
+  return p
+
+modifyPathComponent :: (String -> String) -> CommunicationParser ()
+modifyPathComponent f = do
+  Bookkeeper{..} <- get
+  let (p:ps) = path
+      p' = f p
+  --liftIO $ print ("modifying component", p, "to", p') -- , ps)
+  modify (\ bs -> bs { path=p':ps })
+  return ()
+
+incrementPathComponent :: CommunicationParser Int
+incrementPathComponent = do
+  Bookkeeper{..} <- get
+  let p = (read $ head path) :: Int
+      p' = p + 1
+  modify (\ bs -> bs { path=(show p'):(tail path) })
+  return p'
 
 sectionRule :: (Section -> Section) -> CommunicationParser a -> CommunicationParser a
 sectionRule t p = do
@@ -65,11 +150,11 @@ sectionRule t p = do
                                     }
   if length path == 0
     then
-      return ()
+    return ()
     else
-      put $ bs { communication=communication { communication_sectionList=(cons section) <$> (communication_sectionList communication) } }
+    put $ bs { communication=communication { communication_sectionList=(cons section) <$> (communication_sectionList communication) } }
   return v
-
+  
 class Located a where
   getTextSpan :: a -> TextSpan
   setTextSpan :: TextSpan -> a -> a

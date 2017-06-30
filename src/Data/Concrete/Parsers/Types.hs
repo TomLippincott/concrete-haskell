@@ -2,6 +2,8 @@
 module Data.Concrete.Parsers.Types ( Bookkeeper(..)
                                    , CommunicationParser
                                    , CommunicationAction
+                                   , PathComponent(..)
+                                   , Path
                                    ) where
 
 import Data.Text.Lazy (Text)
@@ -14,7 +16,40 @@ import Control.Monad.State (StateT)
 -- | A 'CommunicationAction' gets called on each Communication
 --   as parsing proceeds
 type CommunicationAction = Communication -> IO ()
-                    
+
+-- | A 'PathComponent' represents one step in navigating a parse
+--   tree.  The meaning will be format-specific: a "step" could
+--   correspond to any number of parse rules.  See the definition
+--   of 'Path' for an example.
+data PathComponent = Index Int -- ^ An index into an anonymous sequence of successors of a path
+                   | Name String -- ^ The name of an identifiable successor of a path
+
+-- | A 'Path' is a sequence of 'PathComponent's that identifies
+--   a particular location in the document being parsed, usually
+--   the *current* location, as a sequence of indices and strings.
+--   Think of it as the sequence of values you would use to
+--   index a Python-style object of nested dictionaries and lists.
+--   The meaning of the indices and strings depends on the format
+--   being parsed: for example, in parsing this HTML:
+--
+-- >    <list id="abc">
+-- >      <li>one</li>
+-- >      <li style="final">two</li>
+-- >    </list>
+--
+--   If we treat the "list" element as the top-level object, we
+--   might, as we parse the document, generate the paths:
+--
+-- >    [Name "id"]
+-- >    [Index 1]
+-- >    [Index 2]
+-- >    [Index 2, Name "style"]
+--
+--   The trick is to take a parser for a data format, and augment
+--   the rules so that the current 'Path' is always correct and
+--   meaningful.
+type Path = [PathComponent]
+
 -- | A 'Bookkeeper' tracks information about an ongoing attempt
 --   to parse a Text stream into Communication objects.
 data Bookkeeper = Bookkeeper { communication :: Communication
@@ -28,6 +63,10 @@ data Bookkeeper = Bookkeeper { communication :: Communication
                              , commNum :: Int
                              }
 
+-- | A StatefulParser is just a Megaparsec Parser that carries
+--   a State, and has access to the IO monad.
+type StatefulParser s a = ParsecT Dec Text (StateT s IO) a
+
 -- | A 'CommunicationParser' is a stateful Megaparsec parser that, as it
 --   processes a Text stream, builds a list of Concrete Communications.
-type CommunicationParser a = ParsecT Dec Text (StateT Bookkeeper IO) a
+type CommunicationParser a = StatefulParser Bookkeeper a

@@ -18,13 +18,13 @@ import Data.Concrete.Parsers (communicationParsers, ingest)
 import Data.Concrete (Communication(..))
 import Text.Printf (printf)
 
-testFormat :: (String, (desc, CommunicationParser ())) -> IO ()
-testFormat (f, (_, p)) = do
+testFormat :: (String, (desc, CommunicationParser (), [String], String)) -> IO ()
+testFormat (f, (d, p, c, i)) = do
   let fname = printf "tests/data/example.%s.gz" f :: String
   ih <- (liftM GZip.decompress . BS.readFile) fname
   putStrLn fname
-  --ingest (\x -> putStrLn $ (unpack . communication_id) x) p (decodeUtf8 ih) ["catchphrase"] "test_id_${}" "test_comm"
-  ingest (\x -> putStr $ unpack $ showCommunication x) p (decodeUtf8 ih) ["catchphrase"] "test_id_${}" "test_comm"  
+  ingest (\x -> putStrLn $ unpack $ showCommunication x) p (decodeUtf8 ih) c i "concrete-haskell unit test data"
+  --["catchphrase", "name", "age", "relatives.0.name", "favorites.friend.name"] "test_id_${name}_${}" "test_comm"  
   return ()
 
 main = putStrLn "\nTesting parsers:" >> (sequence $ map testFormat (toList communicationParsers))

@@ -37,7 +37,7 @@ import Data.Text.Lazy (Text, pack)
 import Data.Concrete.Types
 import Data.Concrete.Parsers.Types
 import Control.Monad.IO.Class (liftIO)
-import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos)
+import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos, parseErrorPretty)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector (Vector, fromList, snoc, empty)
 import qualified Data.Concrete.Parsers.JSON as JSON
@@ -49,21 +49,52 @@ import qualified Data.Concrete.Parsers.Email as Email
 import qualified Data.Concrete.Parsers.PTB as PTB
 
 
-communicationParsers = Map.fromList [ ("JSON", ("JSON array of arbitrary objects", JSON.parser))
-                                    --, ("CONLL", ("CONLL format", CONLL.parser))
+communicationParsers = Map.fromList [ ( "JSON"
+                                      , ( "JSON array of arbitrary objects"
+                                        , JSON.parser
+                                        , [ "catchphrase"
+                                          , "relatives.0.name"
+                                          ]
+                                        , "id_${name}"
+                                        )
+                                      )
+                                    , ( "CSV"
+                                      , ( "CSV format (with header, commas)"
+                                        , CSV.parser True ','
+                                        , [ "technology"
+                                          , "Bush"
+                                          , "Gore"
+                                          ]
+                                        , "id_${county}"
+                                        )
+                                      )
+                                    -- , ( "PTB"
+                                    --   , ( "PENN Treebank format"
+                                    --     , PTB.parser
+                                    --     , []
+                                    --     , "id_${}"
+                                    --     )
+                                    --   )
+                                    -- , ("CONLL"
+                                    --   , ( "CONLL format"
+                                    --     , CONLL.parser
+                                    --     , []
+                                    --     , "id_${}"
+                                    --     )
+                                    --   )
                                     -- , ("HTML", ("HTML format", HTML.parser))
                                     -- , ("XML", ("XML format", XML.parser))
-                                    , ("CSV", ("CSV format", CSV.parser '\t'))
                                     -- , ("Email", ("Email format", Email.parser))
-                                    , ("PTB", ("PENN Treebank format", PTB.parser))                                    
                                     ]
 
 ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()
 ingest a p t cs i ct = do
   let s = State { stateInput=t
-                , statePos=NE.fromList $ [initialPos "JSON"]
+                , statePos=NE.fromList $ [initialPos "Text File"]
                 , stateTokensProcessed=0
                 , stateTabWidth=unsafePos 8
                 }
-  runStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct 0)
-  return ()
+  ((_, e), _) <- runStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct 0)
+  case e of
+    Left x -> putStrLn $ parseErrorPretty x
+    _ -> return ()

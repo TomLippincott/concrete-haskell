@@ -132,9 +132,10 @@ createAnnotationMetadata s = do
                                       }
 
 showSection :: T.Text -> C.Section -> T.Text
-showSection t s = T.concat ["\t", ((fromJust . C.section_label) s), " ", (C.section_kind s), "--->", t']
+showSection t s = T.concat ["    ", ((fromJust . C.section_label) s), " == ", t']
   where
     C.TextSpan s' e' = (fromJust . C.section_textSpan) s
+    k = C.section_kind s
     t' = substr t (fromIntegral s') (fromIntegral e')
 
 substr :: T.Text -> Int -> Int -> T.Text
@@ -144,9 +145,10 @@ substr t s e = res
     res = T.take (fromIntegral $ e - s) start
 
 showCommunication :: Communication -> T.Text
-showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n", T.intercalate "\n" sects, "\n"]
+showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n", "  Content:", "\n", T.intercalate "\n" sects, "\n"]
   where    
     ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
     t = (fromJust . C.communication_text) c
+    --sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
     sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
 

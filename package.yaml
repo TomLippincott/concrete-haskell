@@ -58,6 +58,7 @@ executables:
     source-dirs: utils
     default-extensions:
     - DuplicateRecordFields
+    - RecordWildCards
     dependencies:
     - base >=4.6 && <5
     - concrete-haskell

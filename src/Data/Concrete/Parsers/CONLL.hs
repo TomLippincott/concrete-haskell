@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.CONLL
-       ( arrayOfObjectsP
+       ( parser
        ) where
 
 import Data.List (intercalate)
@@ -34,6 +34,10 @@ import Text.Megaparsec ( parseErrorPretty
                        , State(..)
                        , getParserState
                        , eol
+                       , newline
+                       , sepBy1
+                       , many
+                       , noneOf
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
@@ -44,9 +48,25 @@ import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
 
 -- CONLLX CONLLU
-  
-arrayOfObjectsP :: CommunicationParser ()
-arrayOfObjectsP = sentence `sepBy` (count 2 eol) >> return ()
+ufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"]
+xfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD", "DEPREL", "PDEPREL"]
 
---sentence :: CommunicationParser ()
-sentence = error "unimplemented"
+parser :: CommunicationParser ()
+parser = (communicationRule id sentence) `sepBy1` eol >> return ()
+
+sentence = (commentLine <|> wordLine) `sepBy1` eol
+
+commentLine = (char '#') >> (many $ noneOf ['\n']) >> return ()
+
+wordLine = row '\t' ufields
+
+row :: Char -> [Text] -> CommunicationParser ()
+row d fs = do
+  es <- (entry d) `sepBy1` (char d)
+  return ()
+  where
+    entry' n = entry d >>= (\x -> char d >> return x)
+    entry'' n = entry d
+
+entry :: Char -> CommunicationParser Text
+entry d = pack <$> (many (noneOf [d, '\n']))
