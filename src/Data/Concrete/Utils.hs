@@ -4,6 +4,8 @@ module Data.Concrete.Utils
          getUUID
        , createAnnotationMetadata
        , readCommunicationsFromBytes
+       , readCommunicationsFromTar
+       , readCommunicationsFromZip
        , writeCommunications
        , writeCommunication
        , showCommunication
@@ -11,9 +13,10 @@ module Data.Concrete.Utils
 
 import GHC.Generics
 import qualified Data.Concrete as C
+import Path.IO (resolveFile')
 import Data.Concrete (Communication(..), Section(..), UUID(..), default_Communication, read_Communication)
 import Data.Text
-import Data.Maybe (fromJust, maybeToList)
+import Data.Maybe (fromJust, maybeToList, fromMaybe)
 import Data.ByteString.Lazy
 import Data.Map
 import Data.UUID.V4 (nextRandom)
@@ -28,15 +31,18 @@ import Thrift.Protocol.JSON
 import Thrift.Transport.IOBuffer
 import Thrift.Transport
 import qualified Data.List as L
+import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as BS
 import qualified Codec.Compression.GZip as GZip
+import qualified Codec.Compression.BZip as BZip
 import qualified Codec.Archive.Tar       as Tar
+import qualified Codec.Archive.Zip       as Zip
 import qualified Codec.Archive.Tar.Entry as Tar
 import Data.Time
 import Data.Time.Clock.POSIX
 import System.FilePath (takeFileName, (</>), (<.>))
 import Data.Either (rights)
-import Control.Monad (liftM)
+import Control.Monad (liftM, join)
 import Data.Foldable (foldr)
 import System.IO (Handle)
 import qualified Data.Vector as V
@@ -45,6 +51,25 @@ getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
   return $ UUID uuid
+
+readCommunicationsFromTar :: ByteString -> IO [Communication]
+readCommunicationsFromTar bs = do
+  let es = Tar.read bs
+      cs = Tar.foldEntries (\e x -> (Tar.entryContent e):x) [] (\e -> []) es
+  sequence $ L.map (\ (Tar.NormalFile bs _) -> stringToComm bs) cs
+
+writeCommunicationsToTar :: [Communication] -> ByteString
+writeCommunicationsToTar cs = error "unimplemented"
+
+readCommunicationsFromZip :: String -> IO [Communication]
+readCommunicationsFromZip f = do
+  f' <- resolveFile' f
+  es <- Zip.withArchive f' ((Map.keys <$> Zip.getEntries))
+  bss <- Zip.withArchive f' ((sequence . (L.map Zip.getEntry)) es)
+  sequence $ L.map (stringToComm . fromStrict) bss
+  
+writeCommunicationsToZip :: String -> [Communication] -> IO ()
+writeCommunicationsToZip f cs = return ()
 
 writeCommunications :: Handle -> [Communication] -> IO ()
 writeCommunications out cs = do
@@ -58,15 +83,16 @@ writeCommunications out cs = do
 writeCommunication :: Handle -> Communication -> IO ()
 writeCommunication out c = do
   t <- commToString c
-  (BS.hPutStr out . GZip.compress) t
+  BS.hPutStr out t
 
 readCommunicationsFromBytes :: BS.ByteString -> IO [Communication]
 readCommunicationsFromBytes t = do
-  --t <- (liftM GZip.decompress . BS.readFile) f
   transport <- newTString
   fillBuf (getRead transport) t
   let iproto = CompactProtocol transport
-  readCommunication' iproto []
+  c <- read_Communication iproto
+  c' <- read_Communication iproto
+  return [c']
   where
     readCommunication' pr cs = do
       o <- tIsOpen $ getTransport pr      
@@ -132,7 +158,7 @@ createAnnotationMetadata s = do
                                       }
 
 showSection :: T.Text -> C.Section -> T.Text
-showSection t s = T.concat ["    ", ((fromJust . C.section_label) s), " == ", t']
+showSection t s = T.concat ["    ", ((fromMaybe "*NO LABEL*" . C.section_label) s), " == ", t']
   where
     C.TextSpan s' e' = (fromJust . C.section_textSpan) s
     k = C.section_kind s
@@ -146,9 +172,8 @@ substr t s e = res
 
 showCommunication :: Communication -> T.Text
 showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n", "  Content:", "\n", T.intercalate "\n" sects, "\n"]
-  where    
+  where
     ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
     t = (fromJust . C.communication_text) c
-    --sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
     sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
-
+  

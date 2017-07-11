@@ -3,16 +3,18 @@ module Main (main) where
 
 import Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
-import Data.Map (toList, (!), keys)
+import Data.Map (Map, toList, (!), keys)
+import qualified Data.Map as Map
 import Data.Monoid ((<>))
 import Data.List (intercalate)
 import Control.Monad (void, join, liftM)
 import Data.Text.Lazy (Text, unpack, take)
 import Data.Text.Lazy.Encoding (decodeUtf8)
-import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
+import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn, hClose)
 import System.FilePath (takeExtension)
 import qualified Codec.Compression.GZip as GZip
 import Data.Concrete.Utils (writeCommunication)
+import qualified Data.Concrete.Utils as CU
 import Data.Concrete.Parsers.Types (CommunicationParser)
 import Data.Concrete.Parsers (communicationParsers, ingest)
 import Options.Applicative ( Parser(..)
@@ -72,25 +74,28 @@ parameters = Parameters
                            ))
              <*> strOption (short 'f'
                             <> long "format"
-                            <> help ("Input format: (" ++ ((intercalate "|" . keys) communicationParsers) ++ ")")
+                            <> help ("Input format: (" ++ ((intercalate "|" . keys) (Map.fromList communicationParsers)) ++ ")")
                            )
                       
 main = do
   ps <- execParser opts
-  ofd <- case outputFile ps of
-           Just f -> openFile f WriteMode
-           Nothing -> return stdout
+  
   ih <- case inputFile ps of
     Just f -> case takeExtension f of
       ".gz" -> (liftM GZip.decompress . BS.readFile) f
       _ -> BS.readFile f
     Nothing -> BS.hGetContents stdin
-  let (_, p, _, _) = communicationParsers ! (format ps)
+  let (_, p, _, _) = (Map.fromList communicationParsers) ! (format ps)
+
   oh <- case outputFile ps of
-    Just f -> openFile f WriteMode
-    Nothing -> return stdout
-  cs <- ingest (writeCommunication oh) p (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)
-  return ()
+          Just f -> openFile f WriteMode
+          Nothing -> return stdout
+  let cb = case outputFile ps of
+             Just f -> case takeExtension f of
+               _ -> writeCommunication oh
+             Nothing -> writeCommunication oh
+  cs <- ingest cb p (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)
+  hClose oh
   where
     opts = info (helper <*> parameters)
            ( fullDesc

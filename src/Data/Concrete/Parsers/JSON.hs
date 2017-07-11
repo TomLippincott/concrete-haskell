@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module Data.Concrete.Parsers.JSON
        ( parser
+       , lineParser
        ) where
 
 import Control.Monad.State (State, get, put, modify, modify')
@@ -17,6 +18,7 @@ import Text.Megaparsec.Pos (initialPos, defaultTabWidth)
 import Text.Megaparsec.Error (Dec)
 import Text.Megaparsec ( parseErrorPretty
                        , (<|>)
+                       , eol
                        , space
                        , hexDigitChar
                        , count
@@ -34,6 +36,7 @@ import Text.Megaparsec ( parseErrorPretty
                        , State(..)
                        , getParserState
                        , eof
+                       , many
                        )
 import Control.Monad.IO.Class (liftIO)
 import Text.Megaparsec.Text.Lazy (Parser)
@@ -56,7 +59,10 @@ import Data.Concrete.Parsers.Utils ( communicationRule
                                    )
 
 parser :: CommunicationParser ()
-parser = brackets ((communicationRule id objectP) `sepBy` comma) >> eof >> return ()
+parser = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
+
+lineParser :: CommunicationParser ()
+lineParser = (many (communicationRule id objectP)) >> return ()
 
 jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
 

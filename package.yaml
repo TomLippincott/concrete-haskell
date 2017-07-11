@@ -12,75 +12,70 @@ copyright: '2017'
 license: GPL
 homepage: https://github.com/hltcoe
 dependencies:
-- text
-- bytestring
-- containers
-- zlib
-- filepath
+  - base >=4.6 && <5
+  - bytestring
+  - bzlib
+  - containers
+  - directory
+  - filepath  
+  - hashable
+  - megaparsec >=5.3.0
+  - mtl
+  - path-io ==1.2.2
+  - process
+  - QuickCheck
+  - scientific
+  - tar
+  - text
+  - thrift ==0.10.0  
+  - time
+  - unordered-containers
+  - uuid
+  - vector
+  - zip
+  - zlib
 library:
   source-dirs: src
   default-extensions:
-  - DuplicateRecordFields
-  - RecordWildCards
+    - DuplicateRecordFields
+    - RecordWildCards
   exposed-modules:
-  - Data.Concrete
-  - Data.Concrete.Types
-  - Data.Concrete.Utils
-  - Data.Concrete.Parsers
-  - Data.Concrete.Parsers.Types
-  - Data.Concrete.Parsers.Utils
-  - Data.Concrete.Parsers.JSON
-  - Data.Concrete.Parsers.CONLL
-  - Data.Concrete.Parsers.Email
-  - Data.Concrete.Parsers.XML
-  - Data.Concrete.Parsers.CSV
-  - Data.Concrete.Parsers.HTML
-  - Data.Concrete.Parsers.PTB
+    - Data.Concrete
+    - Data.Concrete.Types
+    - Data.Concrete.Utils
+    - Data.Concrete.Parsers
+    - Data.Concrete.Parsers.Types
+    - Data.Concrete.Parsers.Utils
+    - Data.Concrete.Parsers.JSON
+    - Data.Concrete.Parsers.CONLL
+    - Data.Concrete.Parsers.Email
+    - Data.Concrete.Parsers.XML
+    - Data.Concrete.Parsers.CSV
+    - Data.Concrete.Parsers.HTML
+    - Data.Concrete.Parsers.PTB
+    - Data.Concrete.Parsers.RFC2822
   dependencies:
-  - base >=4.6 && <5
-  - thrift ==0.10.0
-  - unordered-containers
-  - QuickCheck
-  - vector
-  - hashable
-  - uuid
-  - tar
-  - time
-  - process
-  - directory
-  - attoparsec
-  - megaparsec >=5.3.0
-  - scientific
-  - mtl
 executables:
   inspect_communications:
     main: InspectCommunication.hs
     source-dirs: utils
     default-extensions:
-    - DuplicateRecordFields
-    - RecordWildCards
+      - DuplicateRecordFields
+      - RecordWildCards
     dependencies:
-    - base >=4.6 && <5
-    - concrete-haskell
-    - optparse-applicative
-    - process
-    - directory
-    - vector
+      - concrete-haskell
+      - optparse-applicative
   ingest_communications:
     main: IngestCommunications.hs
     source-dirs: utils
     default-extensions:
-    - DuplicateRecordFields
+      - DuplicateRecordFields
     dependencies:
-    - base >=4.6 && <5
-    - concrete-haskell
-    - optparse-applicative
-    - process
-    - directory
-    - vector
+      - concrete-haskell
+      - optparse-applicative
 tests:
   unit_tests:
     main: tests/UnitTests.hs
     dependencies:
-    - base
-    - concrete-haskell
+      - concrete-haskell
+

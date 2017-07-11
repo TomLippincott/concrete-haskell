@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.Email
-       ( arrayOfObjectsP
+       ( parser
        ) where
 
 import Data.List (intercalate)
@@ -33,6 +33,7 @@ import Text.Megaparsec ( parseErrorPretty
                        , runParserT'
                        , State(..)
                        , getParserState
+                       , many
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
@@ -41,6 +42,9 @@ import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
+import qualified Data.Concrete.Parsers.RFC2822 as R
 
-arrayOfObjectsP :: CommunicationParser ()
-arrayOfObjectsP = error "unimplemented"
+parser :: CommunicationParser ()
+parser = email >> return ()
+
+email = many anyChar

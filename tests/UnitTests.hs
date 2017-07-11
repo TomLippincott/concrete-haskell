@@ -27,4 +27,4 @@ testFormat (f, (d, p, c, i)) = do
   --["catchphrase", "name", "age", "relatives.0.name", "favorites.friend.name"] "test_id_${name}_${}" "test_comm"  
   return ()
 
-main = putStrLn "\nTesting parsers:" >> (sequence $ map testFormat (toList communicationParsers))
+main = putStrLn "\nTesting parsers:" >> (sequence $ map testFormat (communicationParsers))

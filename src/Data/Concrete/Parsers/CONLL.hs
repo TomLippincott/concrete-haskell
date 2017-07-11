@@ -1,13 +1,15 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.CONLL
        ( parser
+       , xfields
+       , ufields
        ) where
 
 import Data.List (intercalate)
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
 import Data.Concrete.Parsers.Utils (communicationRule)
 import Data.Scientific (scientific, Scientific(..))
-import Data.Text.Lazy (pack, Text)
+import Data.Text.Lazy (pack, unpack, Text)
 import Data.Functor (($>))
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -34,10 +36,14 @@ import Text.Megaparsec ( parseErrorPretty
                        , State(..)
                        , getParserState
                        , eol
+                       , tab
                        , newline
                        , sepBy1
                        , many
                        , noneOf
+                       , eof
+                       , separatorChar
+                       , someTill
                        )
 
 import Text.Megaparsec.Text.Lazy (Parser)
@@ -45,28 +51,30 @@ import Data.Concrete (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Types
-import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
+import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, pushPathComponent, popPathComponent)
 
--- CONLLX CONLLU
-ufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"]
-xfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD", "DEPREL", "PDEPREL"]
+ufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"] :: [Text]
+xfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD", "DEPREL", "PDEPREL"] :: [Text]
 
-parser :: CommunicationParser ()
-parser = (communicationRule id sentence) `sepBy1` eol >> return ()
+parser :: [Text] -> CommunicationParser ()
+parser fs = (communicationRule id (sentence fs)) `sepBy1` sentenceBreak >> return ()
 
-sentence = (commentLine <|> wordLine) `sepBy1` eol
+sentence fs = (some (commentLine <|> wordLine fs)) >> return ()
 
-commentLine = (char '#') >> (many $ noneOf ['\n']) >> return ()
+commentLine = (char '#') >> (manyTill anyChar newline)
+  
+wordLine fs = (row fs) >> return []
 
-wordLine = row '\t' ufields
-
-row :: Char -> [Text] -> CommunicationParser ()
-row d fs = do
-  es <- (entry d) `sepBy1` (char d)
+row fs = do
+  ls <- mapM (\n -> namedEntry n >> char '\t') (init fs)
+  s <- namedEntry (last fs)
+  newline
   return ()
-  where
-    entry' n = entry d >>= (\x -> char d >> return x)
-    entry'' n = entry d
 
-entry :: Char -> CommunicationParser Text
-entry d = pack <$> (many (noneOf [d, '\n']))
+namedEntry f = do
+  pushPathComponent (unpack f)
+  t <- sectionRule id $ pack <$> (some (noneOf ['\t', '\n']))
+  popPathComponent
+  return t
+
+sentenceBreak = newline

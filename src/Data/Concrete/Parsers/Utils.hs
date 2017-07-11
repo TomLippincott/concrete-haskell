@@ -31,7 +31,7 @@ import Text.Printf (printf)
 substr :: T.Text -> Int -> Int -> String
 substr t s e = T.unpack res
   where
-    (_, start) = T.splitAt (fromIntegral s) t    
+    (_, start) = T.splitAt (fromIntegral s) t
     res = T.take (fromIntegral $ e - s) start
 
 makeId :: [(Text, Text)] -> Text -> Int -> Text
@@ -39,7 +39,6 @@ makeId ss i n = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) i 
 
 communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
 communicationRule tr p = do
-  --liftIO $ print "Starting Communication"
   offset <- (fromIntegral . stateTokensProcessed) <$> getParserState  
   (t, o) <- match p
   bs@(Bookkeeper {..}) <- get
@@ -59,8 +58,6 @@ communicationRule tr p = do
                         , communication_sectionList=Just $ fromList sections'
                         }
   put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[], commNum=commNum + 1 }
-  
-  --liftIO $ print "Ending Communication"
   liftIO $ action (tr c)
   clearState
   return o

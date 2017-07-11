@@ -4,6 +4,7 @@ module Main (main) where
 import Data.Monoid ((<>))
 import qualified Data.ByteString.Lazy as BS
 import qualified Codec.Compression.GZip as GZip
+import qualified Codec.Compression.BZip as BZip
 import qualified Data.Concrete.Utils as CU
 import qualified Data.Concrete as C
 import qualified Options.Applicative as O
@@ -23,24 +24,23 @@ parameters = Parameters
              <$> (O.optional $ strOption (short 'i'
                                           <> long "input"
                                           <> metavar "INPUT_FILE"
-                                          <> help "Communications to inspect, serialized with Compact protocol, where the file name is interpreted by ending (.zip, .gz, .tgz) backing off to uncompressed sequence of Communications.  If ommitted, read uncompressed sequence of Communications from stdin."
+                                          <> help "Communications to inspect, serialized with Compact protocol, where the file name is interpreted by ending (.zip, .gz, .bz2, .tgz, .tbz2) backing off to uncompressed sequence of Communications.  If no file is specified, read uncompressed sequence of Communications from stdin."
                                          )
                  )
 
 main = do
   ps <- execParser opts
-  cs <- case inputFile ps of
+  cs <- join $ case inputFile ps of
     Just f -> case takeExtension f of
-      ".tar" -> error "tar not implemented yet"
-      ".tgz" -> error "compressed tar not implemented yet"
-      ".tbz2" -> error "compressed tar not implemented yet"
-      ".zip" -> error "zip not implemented yet"
-      ".bz2" -> error "bzip not implemented yet"
-      ".gz" -> CU.readCommunicationsFromBytes <$> ((liftM GZip.decompress . BS.readFile) f)      
+      ".tar" -> CU.readCommunicationsFromTar <$> (BS.readFile f)
+      ".tgz" -> CU.readCommunicationsFromTar <$> ((liftM GZip.decompress . BS.readFile) f)
+      ".tbz2" -> CU.readCommunicationsFromTar <$> ((liftM BZip.decompress . BS.readFile) f)
+      ".zip" -> return $ CU.readCommunicationsFromZip f
+      ".bz2" -> CU.readCommunicationsFromBytes <$> ((liftM BZip.decompress . BS.readFile) f)
+      ".gz" -> CU.readCommunicationsFromBytes <$> ((liftM GZip.decompress . BS.readFile) f)
       _ -> CU.readCommunicationsFromBytes <$> (BS.readFile f)
     Nothing -> CU.readCommunicationsFromBytes <$> (BS.hGetContents stdin)
-  cs' <- cs
-  putStr $ ((T.unpack . T.concat) $ map CU.showCommunication cs')
+  putStr $ ((T.unpack . T.concat) $ [CU.showCommunication (head cs)])
   where
     opts = info (helper <*> parameters)
            ( fullDesc
