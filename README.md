@@ -1,7 +1,39 @@
 # Concrete Haskell library
 
 ## Installation
-End-users should run `cabal install concrete-haskell`.  For development, the environment is managed by [Stack](https://docs.haskellstack.org/en/stable/README/) which is quite heavy-weight as it completely sand-boxes the full Haskell compiler and all libraries by default.
+
+End-users with a recent GHC version can run `cabal install concrete-haskell`.  
+
+For development, the environment is managed by [Stack](https://docs.haskellstack.org/en/stable/README/) which is quite heavy-weight as it completely sand-boxes the full Haskell compiler and all libraries by default.  You will need the zlib and bz2lib compression libraries installed, and you can install stack and put it on your executable path with:
+
+```
+mkdir -p ~/.local/bin
+wget https://www.stackage.org/stack/linux-x86_64-static -O - | tar xpz -C ~/.local/bin --strip-components=1 stack-1.4.0-linux-x86_64-static/stack
+export PATH=~/.local/bin:${PATH}
+```
+
+You can then invoke stack from within this repository:
+
+```
+cs concrete-haskell
+stack setup
+stack init --omit-packages
+```
+
+Edit `stack.yaml` such that the corresponding entries are:
+
+```
+packages:
+  - .
+
+extra-deps:
+  - thrift-0.10.0
+  - megaparsec-5.3.0
+
+allow-newer: true
+```
+
+You should now be able to run `stack build`, `stack install`, `stack test`, and so forth.  The first time you run one of these commands, it will take a while to build all the dependencies and so forth (maybe 10 minutes or so), but thereafter should only be recompiling code that changes.
 
 ## Inspecting Data
 

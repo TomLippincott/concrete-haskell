@@ -37,7 +37,6 @@ dependencies:
 library:
   source-dirs: src
   default-extensions:
-    - DuplicateRecordFields
     - RecordWildCards
   exposed-modules:
     - Data.Concrete
@@ -60,7 +59,6 @@ executables:
     main: InspectCommunication.hs
     source-dirs: utils
     default-extensions:
-      - DuplicateRecordFields
       - RecordWildCards
     dependencies:
       - concrete-haskell
@@ -68,8 +66,6 @@ executables:
   ingest_communications:
     main: IngestCommunications.hs
     source-dirs: utils
-    default-extensions:
-      - DuplicateRecordFields
     dependencies:
       - concrete-haskell
       - optparse-applicative
