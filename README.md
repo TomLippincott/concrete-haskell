@@ -15,8 +15,13 @@ export PATH=~/.local/bin:${PATH}
 You can then invoke stack from within this repository:
 
 ```
-cs concrete-haskell
+cd concrete-haskell
 stack setup
+```
+
+This may take quite a while to run, on the order of 30 minutes, with a lot of variation, because its compiling GHC from scratch.  Then run:
+
+```
 stack init --omit-packages
 ```
 
