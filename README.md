@@ -47,6 +47,14 @@ This library was initially created to leverage Haskell's powerful monadic parsin
 cat INPUT.txt | stack exec ingest_communications -f FORMAT -t TYPE -I ID -s KIND1 -s KIND2 > OUTPUT.gz
 ```
 
+For example, there is an ingester for JSON, where the input is a JSON array, each element of which is turned into a Communication (see, for example, `tests/data/example.JSON.gz`).  In this situation, after you've run `stack install` so the binary is compiled and on your path, you could run:
+
+```
+zcat JSON.gz | ingest_communications -f JSON -t "Tweet" -I 'Twitter #${id}' -s text > OUTPUT.gz
+```
+
+This would turn a top-level array of JSON objects into Communications with type "Tweet", each ID of the format "Twitter #ID", and treating the "text" field of the JSON objects as content.
+
 ### Implementation State
 
 It currently handles:
