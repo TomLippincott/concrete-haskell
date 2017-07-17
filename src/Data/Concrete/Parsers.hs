@@ -59,7 +59,7 @@ communicationParsers = [( "JSON"
                           )
                         )
                        , ( "JSON-LINES"
-                         , ( "JSON array of arbitrary objects"
+                         , ( "One JSON object per line"
                            , JSON.lineParser
                            , [ "catchphrase"
                              , "relatives.0.name"

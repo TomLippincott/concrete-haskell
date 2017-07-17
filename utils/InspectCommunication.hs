@@ -1,4 +1,10 @@
-{-# LANGUAGE OverloadedStrings, NoMonomorphismRestriction, FlexibleContexts, GADTs, MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeOperators #-}
+
 module Main (main) where
 
 import Data.Monoid ((<>))
@@ -7,8 +13,6 @@ import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.BZip as BZip
 import qualified Data.Concrete.Utils as CU
 import qualified Data.Concrete as C
-import qualified Options.Applicative as O
-import Options.Applicative (option, auto, short, long, metavar, strOption, help, execParser, info, helper, fullDesc, progDesc, many)
 import qualified Data.Vector as V
 import Control.Monad (liftM, mapM, join)
 import Data.List (intercalate, concat)
@@ -16,20 +20,16 @@ import qualified Data.Text.Lazy as T
 import Data.Maybe (fromJust, catMaybes, maybeToList)
 import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
 import System.FilePath (takeExtension)
-data Parameters = Parameters { inputFile :: Maybe String
-                             } deriving (Show)
+import Options.Generic
 
-parameters :: O.Parser Parameters
-parameters = Parameters
-             <$> (O.optional $ strOption (short 'i'
-                                          <> long "input"
-                                          <> metavar "INPUT_FILE"
-                                          <> help "Communications to inspect, serialized with Compact protocol, where the file name is interpreted by ending (.zip, .gz, .bz2, .tgz, .tbz2) backing off to uncompressed sequence of Communications.  If no file is specified, read uncompressed sequence of Communications from stdin."
-                                         )
-                 )
+data Parameters w = Parameters { inputFile :: w ::: Maybe String <?> "Input file, possibly compressed (.bz2 or .gz)"
+                               } deriving (Generic)
+
+instance ParseRecord (Parameters Wrapped)
+deriving instance Show (Parameters Unwrapped)
 
 main = do
-  ps <- execParser opts
+  ps <- unwrapRecord "Inspect Concrete Communications"
   cs <- join $ case inputFile ps of
     Just f -> case takeExtension f of
       ".tar" -> CU.readCommunicationsFromTar <$> (BS.readFile f)
@@ -41,8 +41,3 @@ main = do
       _ -> CU.readCommunicationsFromBytes <$> (BS.readFile f)
     Nothing -> CU.readCommunicationsFromBytes <$> (BS.hGetContents stdin)
   putStr $ ((T.unpack . T.concat) $ [CU.showCommunication (head cs)])
-  where
-    opts = info (helper <*> parameters)
-           ( fullDesc
-             <> progDesc "Inspect a tar file of serialized Communications"
-           )

@@ -8,13 +8,17 @@ module Data.Concrete.Utils
        , readCommunicationsFromZip
        , writeCommunications
        , writeCommunication
+       , writeCommunicationToZip
        , showCommunication
+       , sendCommunication
+       , connectToService
        ) where
 
 import GHC.Generics
 import qualified Data.Concrete as C
 import Path.IO (resolveFile')
 import Data.Concrete (Communication(..), Section(..), UUID(..), default_Communication, read_Communication)
+--import Data.Concrete (StoreCommunicationService_Client)
 import Data.Text
 import Data.Maybe (fromJust, maybeToList, fromMaybe)
 import Data.ByteString.Lazy
@@ -27,7 +31,7 @@ import Thrift.Transport.Handle
 import Thrift.Transport.Framed
 import Thrift.Transport.Empty
 import Thrift.Protocol.Compact
-import Thrift.Protocol.JSON
+import Thrift.Protocol
 import Thrift.Transport.IOBuffer
 import Thrift.Transport
 import qualified Data.List as L
@@ -46,6 +50,7 @@ import Control.Monad (liftM, join)
 import Data.Foldable (foldr)
 import System.IO (Handle)
 import qualified Data.Vector as V
+import qualified Network as Net
 
 getUUID :: IO UUID
 getUUID = do
@@ -71,6 +76,9 @@ readCommunicationsFromZip f = do
 writeCommunicationsToZip :: String -> [Communication] -> IO ()
 writeCommunicationsToZip f cs = return ()
 
+writeCommunicationToZip :: String -> [Communication] -> IO ()
+writeCommunicationToZip f cs = return ()
+
 writeCommunications :: Handle -> [Communication] -> IO ()
 writeCommunications out cs = do
   let tarPath = "comms"
@@ -84,6 +92,17 @@ writeCommunication :: Handle -> Communication -> IO ()
 writeCommunication out c = do
   t <- commToString c
   BS.hPutStr out t
+ -- 
+connectToService :: String -> Int -> IO (CompactProtocol (FramedTransport Handle), CompactProtocol (FramedTransport Handle))
+connectToService h p = do
+  transport <- hOpen (h, Net.PortNumber $ fromIntegral p)
+  transport' <- openFramedTransport transport
+  let protocol = CompactProtocol transport'
+  return (protocol, protocol)
+
+sendCommunication :: String -> Int -> Communication -> IO ()
+sendCommunication h p c = do  
+  return ()
 
 readCommunicationsFromBytes :: BS.ByteString -> IO [Communication]
 readCommunicationsFromBytes t = do
@@ -132,7 +151,7 @@ instance Transport TString where
     tFlush (TString r w) = flushBuf w >> return ()
   
 commToString :: Communication -> IO BS.ByteString
-commToString c = do
+commToString c = do  
   otransport <- newTString
   let oproto = CompactProtocol otransport
   C.write_Communication oproto c
