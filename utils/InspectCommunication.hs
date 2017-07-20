@@ -40,4 +40,4 @@ main = do
       ".gz" -> CU.readCommunicationsFromBytes <$> ((liftM GZip.decompress . BS.readFile) f)
       _ -> CU.readCommunicationsFromBytes <$> (BS.readFile f)
     Nothing -> CU.readCommunicationsFromBytes <$> (BS.hGetContents stdin)
-  putStr $ ((T.unpack . T.concat) $ [CU.showCommunication (head cs)])
+  putStr $ (T.unpack . T.concat) $ map CU.showCommunication cs

@@ -1,5 +1,5 @@
 name: concrete-haskell
-version: '0.1.0.10'
+version: '0.1.0.11'
 synopsis: Library for the Concrete data format.
 description: Concrete is a Thrift-based data specification designed for Natural Language
   Processing (NLP) applications.  This library provides a Haskell interface to code

@@ -109,16 +109,14 @@ readCommunicationsFromBytes t = do
   transport <- newTString
   fillBuf (getRead transport) t
   let iproto = CompactProtocol transport
-  c <- read_Communication iproto
-  c' <- read_Communication iproto
-  return [c']
+  readCommunications iproto []
   where
-    readCommunication' pr cs = do
+    readCommunications pr cs = do
       o <- tIsOpen $ getTransport pr      
       case o of
         True -> do
           c <- read_Communication pr
-          readCommunication' pr $ c:cs
+          readCommunications pr $ c:cs
         False -> return cs
 
 entryToString :: Tar.EntryContent -> BS.ByteString
