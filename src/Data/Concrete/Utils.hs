@@ -190,9 +190,10 @@ substr t s e = res
     res = T.take (fromIntegral $ e - s) start
 
 showCommunication :: Communication -> T.Text
-showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n", "  Content:", "\n", T.intercalate "\n" sects, "\n"]
+showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n  Content sections:", "\n", T.intercalate "\n" contentSects, "\n  Metadata sections: ", metadataText, "\n"]
   where
     ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
     t = (fromJust . C.communication_text) c
-    sects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
-  
+    contentSects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
+    metadataSects = L.map (fromMaybe "?" . C.section_label) ((L.filter (\x -> section_kind x /= "content")) ss)
+    metadataText = T.intercalate ", " metadataSects

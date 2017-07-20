@@ -25,6 +25,7 @@ import Text.Megaparsec ( parseErrorPretty
                        , manyTill
                        , anyChar
                        , runParser
+                       , try
                        , some
                        , char
                        , choice
@@ -99,11 +100,9 @@ stringLiteral = lexeme' $ do
 
 arrayEntryP = pathArrayEntryRule $ do
   jsonP
-  return ()
 
-arrayP = pathArrayRule $ do
-  c <- brackets (arrayEntryP `sepBy` comma)
-  return ()
+arrayP =  pathArrayRule $ do  
+  (try (brackets space)) <|> ((brackets (arrayEntryP `sepBy` comma)) >> return ())
 
 pairP = do
   key <- stringLiteral

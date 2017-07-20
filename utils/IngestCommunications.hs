@@ -60,5 +60,6 @@ main = do
             return $ StoreService.store con
           (Nothing, Nothing, Nothing) -> return $ writeCommunication stdout
           _ -> error "Specify either an output file,  a host and port, or nothing (for stdout)"
-  cs <- ingest cb cp (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)
+  cs <- ingest (putStrLn . unpack . CU.showCommunication) cp (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)          
+  --cs <- ingest print cp (decodeUtf8 ih) (contentSectionTypes ps) (commId ps) (commType ps)
   return ()
