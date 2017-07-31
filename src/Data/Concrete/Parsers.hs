@@ -17,24 +17,25 @@ import qualified Data.Map as Map
 import Data.Vector (fromList, Vector)
 import Data.Map (Map)
 import Data.Concrete.Utils (createAnnotationMetadata, getUUID, writeCommunication)
-import Data.Concrete ( default_Communication
-                     , Communication(..)
-                     , default_Section
-                     , Section(..)
-                     , default_AnnotationMetadata
-                     , AnnotationMetadata(..)
-                     , default_CommunicationMetadata
-                     , CommunicationMetadata(..)
-                     , default_Sentence
-                     , Sentence(..)
-                     , default_TextSpan
-                     , TextSpan(..)
-                     )
+-- import Data.Concrete ( default_Communication
+--                      , Communication(..)
+--                      , default_Section
+--                      , Section(..)
+--                      , default_AnnotationMetadata
+--                      , AnnotationMetadata(..)
+--                      , default_CommunicationMetadata
+--                      , CommunicationMetadata(..)
+--                      , default_Sentence
+--                      , Sentence(..)
+--                      , default_TextSpan
+--                      , TextSpan(..)
+--                      )
 import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
 import Control.Monad.State (runStateT)
 import Data.ByteString.Lazy (ByteString)
 import Data.Text.Lazy (Text, pack)
-import Data.Concrete.Types
+import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
+--import Data.Concrete.Types
 import Data.Concrete.Parsers.Types
 import Control.Monad.IO.Class (liftIO)
 import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos, parseErrorPretty, eof, space)
@@ -61,8 +62,8 @@ communicationParsers = [( "JSON"
                        , ( "JSON-LINES"
                          , ( "One JSON object per line"
                            , JSON.lineParser
-                           , [ "catchphrase"
-                             , "relatives.0.name"
+                           , [ "author"
+                             , "subreddit"
                              ]
                            , "id_${name}"
                            )
@@ -77,41 +78,41 @@ communicationParsers = [( "JSON"
                            , "id_${county}"
                            )
                          )
-                       , ( "PTB"
-                         , ( "PENN Treebank format"
-                           , PTB.parser
-                           , []
-                           , "id_${}"
-                           )
-                         )
-                       , ("CONLL-U"
-                         , ( "CONLL-U format"
-                           , CONLL.parser CONLL.ufields
-                           , []
-                           , "id_${}"
-                           )
-                         )
-                       , ("HTML"
-                         , ("HTML format"
-                           , HTML.parser
-                           , []
-                           , "id_${}"
-                           )
-                         )
-                       , ("XML"
-                         , ("XML format"
-                           , XML.parser
-                           , []
-                           , "id_${}"
-                           )
-                         )
-                       , ("Email"
-                         , ("Email format"
-                           , Email.parser
-                           , []
-                           , "id_${}"
-                           )
-                         )
+                       -- , ( "PTB"
+                       --   , ( "PENN Treebank format"
+                       --     , PTB.parser
+                       --     , []
+                       --     , "id_${}"
+                       --     )
+                       --   )
+                       -- , ("CONLL-U"
+                       --   , ( "CONLL-U format"
+                       --     , CONLL.parser CONLL.ufields
+                       --     , []
+                       --     , "id_${}"
+                       --     )
+                       --   )
+                       -- , ("HTML"
+                       --   , ("HTML format"
+                       --     , HTML.parser
+                       --     , []
+                       --     , "id_${}"
+                       --     )
+                       --   )
+                       -- , ("XML"
+                       --   , ("XML format"
+                       --     , XML.parser
+                       --     , []
+                       --     , "id_${}"
+                       --     )
+                       --   )
+                       -- , ("Email"
+                       --   , ("Email format"
+                       --     , Email.parser
+                       --     , []
+                       --     , "id_${}"
+                       --     )
+                       --   )
                        ]
 
 ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()

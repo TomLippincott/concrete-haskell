@@ -42,12 +42,12 @@ import Text.Megaparsec ( parseErrorPretty
                        , eof
                        , many
                        )
-
+import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import Text.Megaparsec.Text.Lazy (Parser)
-import Data.Concrete (default_Communication, Communication(..))
+--import Data.Concrete (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
-import Data.Concrete.Types
+--import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, pushPathComponent, popPathComponent)
 
 parser :: Bool -> Char -> CommunicationParser ()

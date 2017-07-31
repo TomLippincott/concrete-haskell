@@ -44,10 +44,10 @@ import Text.Megaparsec ( parseErrorPretty
 
 import Control.Monad.IO.Class (liftIO)       
 import Text.Megaparsec.Text.Lazy (Parser)
-import Data.Concrete (default_Communication, Communication(..))
+import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
-import Data.Concrete.Types
+--import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
 
 parser :: CommunicationParser ()
@@ -58,9 +58,9 @@ parser = do
   eof
   return ()
 
-type CS = CommunicationParser String
-type CSS = CommunicationParser [String]
-type CC = CommunicationParser Char
+-- type CS = CommunicationParser String
+-- type CSS = CommunicationParser [String]
+-- type CC = CommunicationParser Char
 
 document :: CommunicationParser ()
 document = lexeme' $ communicationRule id (parens (some sentence)) >> return ()

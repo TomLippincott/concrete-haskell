@@ -5,3 +5,4 @@
 dist
 stack.yaml
 concrete-haskell.cabal
+scratch

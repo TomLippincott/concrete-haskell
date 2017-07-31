@@ -7,7 +7,8 @@ module Data.Concrete.Parsers.Types ( Bookkeeper(..)
                                    ) where
 
 import Data.Text.Lazy (Text)
-import Data.Concrete (Communication, Section)
+import Data.Concrete.Autogen.Communication_Types (Communication)
+import Data.Concrete.Autogen.Structure_Types (Section, Sentence)
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)

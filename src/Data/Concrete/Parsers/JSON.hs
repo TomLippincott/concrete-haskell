@@ -43,8 +43,8 @@ import Control.Monad.IO.Class (liftIO)
 import Text.Megaparsec.Text.Lazy (Parser)
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
-
-import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
+import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
+--import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
 import Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule

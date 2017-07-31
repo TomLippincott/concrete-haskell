@@ -1,47 +1,56 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances #-}
 module Data.Concrete.Utils
        (
          getUUID
        , createAnnotationMetadata
-       , readCommunicationsFromBytes
-       , readCommunicationsFromTar
-       , readCommunicationsFromZip
-       , writeCommunications
        , writeCommunication
-       , writeCommunicationToZip
        , showCommunication
-       , sendCommunication
-       , connectToService
+       , commToString
+       , incrementUUID
+       , stringToComm
        ) where
 
 import GHC.Generics
-import qualified Data.Concrete as C
 import Path.IO (resolveFile')
-import Data.Concrete (Communication(..), Section(..), UUID(..), default_Communication, read_Communication)
---import Data.Concrete (StoreCommunicationService_Client)
+import Data.Concrete.Autogen.Communication_Types (Communication(..), default_Communication, read_Communication, write_Communication)
+import Data.Concrete.Autogen.Structure_Types (Section(..))
+import Data.Concrete.Autogen.Uuid_Types (UUID(..))
+import Data.Concrete.Autogen.Metadata_Types (AnnotationMetadata(..), default_AnnotationMetadata)
+import Data.Concrete.Autogen.Spans_Types (TextSpan(..))
+import Data.Concrete.Autogen.Service_Iface (Service_Iface(about, alive))
+import Data.Concrete.Autogen.Services_Types (ServiceInfo(..))
+import Data.Concrete.Autogen.Access_Types (FetchResult(..), default_FetchResult)
+import Data.Concrete.Autogen.StoreCommunicationService_Iface (StoreCommunicationService_Iface(store))
+import Data.Concrete.Autogen.FetchCommunicationService_Iface (FetchCommunicationService_Iface(fetch))
+import qualified Data.Concrete.Autogen.StoreCommunicationService as StoreCommunicationService
 import Data.Text
+import Data.Either (rights)
 import Data.Maybe (fromJust, maybeToList, fromMaybe)
 import Data.ByteString.Lazy
 import Data.Map
 import Data.UUID.V4 (nextRandom)
-import Data.UUID (toString)
+import Data.UUID (toString, toWords, fromWords, fromString, nil)
+import qualified Data.UUID as U
 import qualified Data.Text.Lazy as T
 import Thrift
-import Thrift.Transport.Handle
+import Thrift.Transport.Handle hiding (HandleSource)
 import Thrift.Transport.Framed
 import Thrift.Transport.Empty
 import Thrift.Protocol.Compact
 import Thrift.Protocol
 import Thrift.Transport.IOBuffer
 import Thrift.Transport
+import Thrift.Server (runThreadedServer)
 import qualified Data.List as L
 import qualified Data.Map as Map
+import qualified Data.ByteString as BSS
 import qualified Data.ByteString.Lazy as BS
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.BZip as BZip
 import qualified Codec.Archive.Tar       as Tar
 import qualified Codec.Archive.Zip       as Zip
 import qualified Codec.Archive.Tar.Entry as Tar
+import qualified Codec.Archive.Tar.Index as Tar
 import Data.Time
 import Data.Time.Clock.POSIX
 import System.FilePath (takeFileName, (</>), (<.>))
@@ -50,74 +59,22 @@ import Control.Monad (liftM, join)
 import Data.Foldable (foldr)
 import System.IO (Handle)
 import qualified Data.Vector as V
-import qualified Network as Net
-
+import qualified Data.Binary.Get as G
+import qualified Control.Monad.Extra as E
+    
 getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
   return $ UUID uuid
 
-readCommunicationsFromTar :: ByteString -> IO [Communication]
-readCommunicationsFromTar bs = do
-  let es = Tar.read bs
-      cs = Tar.foldEntries (\e x -> (Tar.entryContent e):x) [] (\e -> []) es
-  sequence $ L.map (\ (Tar.NormalFile bs _) -> stringToComm bs) cs
-
-writeCommunicationsToTar :: [Communication] -> ByteString
-writeCommunicationsToTar cs = error "unimplemented"
-
-readCommunicationsFromZip :: String -> IO [Communication]
-readCommunicationsFromZip f = do
-  f' <- resolveFile' f
-  es <- Zip.withArchive f' ((Map.keys <$> Zip.getEntries))
-  bss <- Zip.withArchive f' ((sequence . (L.map Zip.getEntry)) es)
-  sequence $ L.map (stringToComm . fromStrict) bss
-  
-writeCommunicationsToZip :: String -> [Communication] -> IO ()
-writeCommunicationsToZip f cs = return ()
-
-writeCommunicationToZip :: String -> [Communication] -> IO ()
-writeCommunicationToZip f cs = return ()
-
-writeCommunications :: Handle -> [Communication] -> IO ()
-writeCommunications out cs = do
-  let tarPath = "comms"
-  texts <- sequence [commToString c | c <- cs]
-  let names = rights [Tar.toTarPath False (tarPath </> ((T.unpack . C.communication_id) c) <.> "comm") | c <- cs]
-      entries = [Tar.fileEntry n t|(n, t) <- L.zip names texts]
-      t = Tar.write entries
-  (BS.hPutStr out . GZip.compress) t
+incrementUUID :: UUID -> UUID
+incrementUUID (UUID u) = case toWords (fromMaybe nil $ fromString (T.unpack u)) of
+  (a, b, c, d) -> UUID $ (T.pack . toString) (fromWords a b c (d + 1))
 
 writeCommunication :: Handle -> Communication -> IO ()
 writeCommunication out c = do
   t <- commToString c
   BS.hPutStr out t
- -- 
-connectToService :: String -> Int -> IO (CompactProtocol (FramedTransport Handle), CompactProtocol (FramedTransport Handle))
-connectToService h p = do
-  transport <- hOpen (h, Net.PortNumber $ fromIntegral p)
-  transport' <- openFramedTransport transport
-  let protocol = CompactProtocol transport'
-  return (protocol, protocol)
-
-sendCommunication :: String -> Int -> Communication -> IO ()
-sendCommunication h p c = do  
-  return ()
-
-readCommunicationsFromBytes :: BS.ByteString -> IO [Communication]
-readCommunicationsFromBytes t = do
-  transport <- newTString
-  fillBuf (getRead transport) t
-  let iproto = CompactProtocol transport
-  readCommunications iproto []
-  where
-    readCommunications pr cs = do
-      o <- tIsOpen $ getTransport pr      
-      case o of
-        True -> do
-          c <- read_Communication pr
-          readCommunications pr $ c:cs
-        False -> return cs
 
 entryToString :: Tar.EntryContent -> BS.ByteString
 entryToString (Tar.NormalFile s _) = s
@@ -152,7 +109,7 @@ commToString :: Communication -> IO BS.ByteString
 commToString c = do  
   otransport <- newTString
   let oproto = CompactProtocol otransport
-  C.write_Communication oproto c
+  write_Communication oproto c
   flushBuf (getWrite otransport)
 
 stringToComm :: BS.ByteString -> IO Communication
@@ -160,25 +117,20 @@ stringToComm s = do
   otransport@(TString r w) <- newTString
   fillBuf r s
   let oproto = CompactProtocol otransport
-  C.read_Communication oproto
+  read_Communication oproto
 
-dropTarSuffix :: String -> String
-dropTarSuffix f = (L.reverse . L.drop n . L.reverse) f
-  where
-    n = if ".tgz" `L.isSuffixOf` f then 4 else if ".tar.gz" `L.isSuffixOf` f then 7 else 0
-
-createAnnotationMetadata :: String -> IO C.AnnotationMetadata
+createAnnotationMetadata :: String -> IO AnnotationMetadata
 createAnnotationMetadata s = do
   time <- round `fmap` getPOSIXTime
-  return C.default_AnnotationMetadata { C.annotationMetadata_tool=T.pack s
-                                      , C.annotationMetadata_timestamp=time
-                                      }
+  return default_AnnotationMetadata { annotationMetadata_tool=T.pack s
+                                    , annotationMetadata_timestamp=time
+                                    }
 
-showSection :: T.Text -> C.Section -> T.Text
-showSection t s = T.concat ["    ", ((fromMaybe "*NO LABEL*" . C.section_label) s), " == ", t']
+showSection :: T.Text -> Section -> T.Text
+showSection t s = T.concat ["    ", ((fromMaybe "*NO LABEL*" . section_label) s), " == ", t']
   where
-    C.TextSpan s' e' = (fromJust . C.section_textSpan) s
-    k = C.section_kind s
+    TextSpan s' e' = (fromJust . section_textSpan) s
+    k = section_kind s
     t' = substr t (fromIntegral s') (fromIntegral e')
 
 substr :: T.Text -> Int -> Int -> T.Text
@@ -188,10 +140,11 @@ substr t s e = res
     res = T.take (fromIntegral $ e - s) start
 
 showCommunication :: Communication -> T.Text
-showCommunication c = T.concat [C.communication_id c, " ", C.communication_type c, "\n  Content sections:", "\n", T.intercalate "\n" contentSects, "\n  Metadata sections: ", metadataText, "\n"]
+showCommunication c = T.concat [communication_id c, " ", communication_type c, "\n  Content sections:\n", T.intercalate "\n" contentSects, "\n  ", metadataText]
   where
-    ss = L.concat $ L.map V.toList (maybeToList (C.communication_sectionList c))
-    t = (fromJust . C.communication_text) c
+    ss = L.concat $ L.map V.toList (maybeToList (communication_sectionList c))
+    t = (fromJust . communication_text) c
     contentSects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
-    metadataSects = L.map (fromMaybe "?" . C.section_label) ((L.filter (\x -> section_kind x /= "content")) ss)
-    metadataText = T.intercalate ", " metadataSects
+    metadataSects = L.map (fromMaybe "?" . section_label) ((L.filter (\x -> section_kind x /= "content")) ss)
+    --metadataText = T.intercalate ", " metadataSects
+    metadataText = T.concat [(T.pack . show) (L.length metadataSects), " metadata sections"]

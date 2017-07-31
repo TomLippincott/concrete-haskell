@@ -8,7 +8,7 @@ module Data.Concrete.Parsers.Utils ( communicationRule
                                    , pushPathComponent
                                    , popPathComponent
                                    , modifyPathComponent
-                                   , incrementPathComponent
+                                   , incrementPathComponent                                   
                                    , Located(..)
                                    ) where
 
@@ -21,8 +21,10 @@ import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State (State, get, put, modify, modify')
-import Data.Concrete (default_Communication, Communication(..), default_Section, Section(..), default_TextSpan, TextSpan(..))
-import Data.Concrete.Utils (getUUID, createAnnotationMetadata)
+import Data.Concrete.Autogen.Communication_Types (Communication(..), default_Communication)
+import Data.Concrete.Autogen.Structure_Types (Section(..), default_Section)
+import Data.Concrete.Autogen.Spans_Types (TextSpan(..), default_TextSpan)
+import Data.Concrete.Utils (getUUID, createAnnotationMetadata, incrementUUID)
 import Control.Monad.IO.Class (liftIO)
 import Data.Vector (Vector, fromList, snoc, empty, cons, toList)
 import Data.Maybe (fromJust)
@@ -35,7 +37,8 @@ communicationRule tr p = do
   (t, o) <- match p
   bs@(Bookkeeper {..}) <- get
   let sections = (toList . fromJust) (communication_sectionList communication)
-  (u:us) <- liftIO $ sequence (replicate (length sections + 1) getUUID)
+  u <- liftIO getUUID
+  let us = iterate incrementUUID u
   m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
   let sections' = [s { section_uuid=u'
                      , section_kind=if elem ((unpack . fromJust) section_label) contentSections then "content" else "metadata"
