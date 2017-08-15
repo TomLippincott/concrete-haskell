@@ -3,8 +3,9 @@ version: '0.1.0.14'
 synopsis: Library for the Concrete data format.
 description: Concrete is a Thrift-based data specification designed for Natural Language
   Processing (NLP) applications.  This library provides a Haskell interface to code
-  generated from the latest release of Concrete.  It also has a number of utilities
-  for converting various formats (JSON, CSV, XML, etc) to Concrete Communication objects.
+  generated from the latest release of Concrete (the concrete-haskell-autogen package).
+  It also has an ingest utility for converting various formats (JSON, CSV, XML, etc)
+  to Concrete Communication objects.
 category: Data
 author: Thomas Lippincott
 maintainer: tom@cs.jhu.edu
@@ -45,7 +46,6 @@ library:
   default-extensions:
     - RecordWildCards
   exposed-modules:
-    - Data.Concrete
     - Data.Concrete.Utils
     - Data.Concrete.Services
     - Data.Concrete.Services.Fetch

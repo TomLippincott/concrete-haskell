@@ -4,12 +4,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 
 module Main (main) where
 
 import System.FilePath (takeExtension)
-import Data.Concrete.Services.Fetch (ZipFetch(..), TarFetch(..), HandleFetch(..), process, makeTarFetch)
+import Data.Concrete.Services.Fetch (ZipFetch(..), TarFetch(..), process, makeTarFetch, makeZipFetch)
 import Data.Concrete.Services (runConcreteService, Compression(..))
 import Options.Generic (Generic, ParseRecord, Unwrapped, Wrapped, unwrapRecord, (:::), type (<?>)(..))
 import System.IO (openFile, IOMode(..))
@@ -23,7 +24,12 @@ instance ParseRecord (Parameters Wrapped)
 deriving instance Show (Parameters Unwrapped)
 
 main = do
-  ps <- unwrapRecord "Run a file-backed Store service: supports .tar and .tgz"
-  let f = file ps  
-  h <- makeTarFetch f
-  runConcreteService (port ps) h process
+  ps <- unwrapRecord "Run a file-backed Fetch service: supports .tar and .zip"
+  let f = file ps
+  case takeExtension f of
+    ".zip" -> do
+      h <- makeZipFetch f
+      runConcreteService (port ps) process h
+    ".tar" -> do
+      h <- makeTarFetch f
+      runConcreteService (port ps) process h

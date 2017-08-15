@@ -9,7 +9,7 @@
 module Main (main) where
 
 import System.FilePath (takeExtension)
-import Data.Concrete.Services.Store (ZipStore(..), TarStore(..), HandleStore(..), process, makeTarStore)
+import Data.Concrete.Services.Store (ZipStore(..), TarStore(..), process, makeTarStore, makeZipStore)
 import Data.Concrete.Services (runConcreteService, Compression(..))
 import Options.Generic (Generic, ParseRecord, Unwrapped, Wrapped, unwrapRecord, (:::), type (<?>)(..))
 import System.IO (openFile, IOMode(..))
@@ -25,5 +25,10 @@ deriving instance Show (Parameters Unwrapped)
 main = do
   ps <- unwrapRecord "Run a file-backed Store service: supports .tar and .tgz"
   let f = file ps
-  h <- makeTarStore f
-  runConcreteService (port ps) h process
+  case takeExtension f of
+    ".zip" -> do
+      h <- makeZipStore f
+      runConcreteService (port ps) process h
+    ".tar" -> do
+      h <- makeTarStore f
+      runConcreteService (port ps) process h

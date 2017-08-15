@@ -1,12 +1,14 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 {-|
+Description : Parsers and utilities for ingesting various formats to Concrete
+
 This module is designed to enable converting arbitrary formats
 described as simple context-free (or even context-sensitive)
 grammars into Concrete Communication objects.
 
-UUIDs are generated when the Communications are serialized,
-and so the module avoids the need for any impure computations
-until that point.
+A base UUID is generated randomly for each Communication, and subsequent UUIDs
+within the Communication are increments of the base: this allows for more
+efficient compression.
 -}
 module Data.Concrete.Parsers
        ( communicationParsers
@@ -17,25 +19,11 @@ import qualified Data.Map as Map
 import Data.Vector (fromList, Vector)
 import Data.Map (Map)
 import Data.Concrete.Utils (createAnnotationMetadata, getUUID, writeCommunication)
--- import Data.Concrete ( default_Communication
---                      , Communication(..)
---                      , default_Section
---                      , Section(..)
---                      , default_AnnotationMetadata
---                      , AnnotationMetadata(..)
---                      , default_CommunicationMetadata
---                      , CommunicationMetadata(..)
---                      , default_Sentence
---                      , Sentence(..)
---                      , default_TextSpan
---                      , TextSpan(..)
---                      )
 import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
 import Control.Monad.State (runStateT)
 import Data.ByteString.Lazy (ByteString)
 import Data.Text.Lazy (Text, pack)
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
---import Data.Concrete.Types
 import Data.Concrete.Parsers.Types
 import Control.Monad.IO.Class (liftIO)
 import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos, parseErrorPretty, eof, space)
@@ -78,16 +66,16 @@ communicationParsers = [( "JSON"
                            , "id_${county}"
                            )
                          )
-                       -- , ( "PTB"
-                       --   , ( "PENN Treebank format"
-                       --     , PTB.parser
-                       --     , []
-                       --     , "id_${}"
-                       --     )
-                       --   )
                        , ("CONLL-U"
                          , ( "CONLL-U format"
                            , CONLL.parser CONLL.conllufields
+                           , ["sentence"]
+                           , "id_${}"
+                           )
+                         )
+                       , ( "PTB"
+                         , ( "PENN Treebank format"
+                           , PTB.parser
                            , ["sentence"]
                            , "id_${}"
                            )

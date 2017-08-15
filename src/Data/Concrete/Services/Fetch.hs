@@ -1,9 +1,15 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances, BangPatterns #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE BangPatterns #-}
+{-|
+Description: Implementations of FetchCommunicationService for various backends
+-}
 
-module Data.Concrete.Services.Fetch ( HandleFetch(..)
-                                    , ZipFetch(..)
+module Data.Concrete.Services.Fetch ( ZipFetch(..)
+                                    , makeZipFetch
                                     , TarFetch(..)
-                                    , makeTarFetch
+                                    , makeTarFetch                                    
                                     , process
                                     ) where
 
@@ -35,16 +41,54 @@ import Data.Concrete.Autogen.FetchCommunicationService_Iface (FetchCommunication
 import Data.Concrete.Autogen.FetchCommunicationService (process)
 import Data.List (genericDrop, genericTake, genericLength)
 import Data.Text.Lazy (Text, pack, unpack)
+import Path.IO (resolveFile')
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.Text.Lazy as T
+import Control.Monad (liftM)
+
+
+-- Directory-backed
+
 
 -- Handle-backed
 
-newtype HandleFetch = HandleFetch (Handle, Maybe Compression)
 
 -- Zip-backed
 
-newtype ZipFetch = ZipFetch (Handle, Maybe Compression)
+
+newtype ZipFetch = ZipFetch ((Map String Zip.EntrySelector), String)
+
+
+instance Service_Iface ZipFetch where
+  about _ = return $ ServiceInfo "Zip-backed FetchCommunicationService" "0.0.1" (Just "Haskell implementation")
+  alive _ = return True
+
+
+instance FetchCommunicationService_Iface ZipFetch where
+  fetch (ZipFetch (ms, f)) (FetchRequest ii _) = do
+    f' <- resolveFile' f
+    let ids = map T.unpack (V.toList ii)
+        es = map (\i -> ms Map.! i) ids
+    ss <- liftIO $ Zip.withArchive f' (sequence $ map (liftM LBS.fromStrict . Zip.getEntry) es)
+    cs <- sequence $ map stringToComm ss
+    return $ default_FetchResult { fetchResult_communications=V.fromList cs }
+  getCommunicationIDs (ZipFetch (ms, f)) offset count = return $ V.fromList $ ((map (pack . fst)) . genericTake count . genericDrop offset . Map.toList) ms
+  getCommunicationCount (ZipFetch (ms, f)) = return ((genericLength . Map.toList) ms)
+
+
+makeZipFetch :: String -> IO ZipFetch
+makeZipFetch f = do
+  f' <- resolveFile' f  
+  es <- liftIO $ Zip.withArchive f' Zip.getEntries
+  ms <- Map.fromList <$> mapM (\e -> do
+                                  s <- liftIO $ Zip.withArchive f' (Zip.getEntry e)
+                                  c <- stringToComm (LBS.fromStrict s)
+                                  return (T.unpack $ communication_id c, e)) (Map.keys es)
+  return $ ZipFetch (ms, f)
+
 
 -- Tar-backed
+
 
 newtype TarFetch = TarFetch (Handle, (LBS.ByteString -> LBS.ByteString), Tar.TarIndex, Map String FilePath)
 

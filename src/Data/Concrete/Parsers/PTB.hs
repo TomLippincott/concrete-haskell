@@ -47,8 +47,7 @@ import Text.Megaparsec.Text.Lazy (Parser)
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
---import Data.Concrete.Types
-import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
+import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, sentenceRule, tokenRule, pushPathComponent, popPathComponent)
 
 parser :: CommunicationParser ()
 parser = do
@@ -58,18 +57,19 @@ parser = do
   eof
   return ()
 
--- type CS = CommunicationParser String
--- type CSS = CommunicationParser [String]
--- type CC = CommunicationParser Char
-
 document :: CommunicationParser ()
 document = lexeme' $ communicationRule id (parens (some sentence)) >> return ()
 
-sentence = lexeme' $ between (symbol' "(S") (symbol' ")") (some phrase)
-
-phrase = lexeme' $ parens (tag >> some (tag <|> phrase)) >> return []
+sentence = do
+  pushPathComponent "sentence"
+  (sectionRule id . sentenceRule id) $ lexeme' $ between (symbol' "(S") (symbol' ")") (some phrase)
+  popPathComponent  
+  
+phrase = lexeme' $ parens (tag >> some (token <|> phrase)) >> return []
 
 tag = lexicalItem
+
+token = tokenRule id lexicalItem
 
 lexicalItem = lexeme' $ some notSpaceOrParen
 

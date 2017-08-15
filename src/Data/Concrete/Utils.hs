@@ -1,4 +1,8 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances #-}
+
+{-|
+Description: Common tools for working with Concrete data
+-}
 module Data.Concrete.Utils
        (
          getUUID

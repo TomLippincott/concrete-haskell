@@ -1,10 +1,13 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances #-}
+{-|
+Description: Implementations of StoreCommunicationService
+-}
 
-module Data.Concrete.Services.Store ( HandleStore(..)
-                                    , ZipStore(..)
+module Data.Concrete.Services.Store ( ZipStore(..)
                                     , TarStore(..)
                                     , process
                                     , makeTarStore
+                                    , makeZipStore
                                     ) where
 
 import qualified Data.ByteString as SBS
@@ -31,6 +34,8 @@ import Data.Concrete.Utils (commToString)
 import System.IO (openFile, IOMode(..))
 import Control.Monad (liftM)
 import System.FilePath (takeExtension)
+import Control.Monad.IO.Class (liftIO)
+
 
 lift1st :: Monad m => (m a, b) -> m (a, b)
 lift1st (f, s) = do
@@ -40,11 +45,14 @@ lift1st (f, s) = do
 
 -- Handle-backed
 
+
 newtype HandleStore = HandleStore (Handle, Maybe Compression)
+
 
 instance Service_Iface HandleStore where
   about _ = return $ ServiceInfo "Flat-file-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True  
+
 
 instance StoreCommunicationService_Iface HandleStore where
   store (HandleStore (h, c)) comm = do
@@ -55,26 +63,37 @@ instance StoreCommunicationService_Iface HandleStore where
                Just BZip -> BZip.compress
     LBS.hPutStr h (c' t)
 
+
 -- Zip-backed
 
-newtype ZipStore = ZipStore (Handle, Maybe Compression)
 
-instance Service_Iface (Zip.ZipArchive ()) where
+newtype ZipStore = ZipStore String
+
+
+instance Service_Iface ZipStore where
   about _ = return $ ServiceInfo "Zip-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
 
-instance StoreCommunicationService_Iface (Zip.ZipArchive ()) where
-  store _ c = do
+
+instance StoreCommunicationService_Iface ZipStore where
+  store (ZipStore ff) c = do
+    f' <- resolveFile' ff
     bs <- commToString c
     f <- filename <$> resolveFile' ((T.unpack . communication_id) c)
     es <- Zip.mkEntrySelector f
-    return $ Zip.addEntry Zip.BZip2 (LBS.toStrict bs) es
-    print $ T.unpack (communication_id c)
+    liftIO $ Zip.withArchive f' $ Zip.addEntry Zip.BZip2 (LBS.toStrict bs) es
     return ()
+
+
+makeZipStore :: String -> IO ZipStore
+makeZipStore f = return $ ZipStore f
+
 
 -- Tar-backed
 
+
 newtype TarStore = TarStore (Handle, (LBS.ByteString -> LBS.ByteString), SBS.ByteString, Integer)
+
 
 makeTarStore :: String -> IO TarStore
 makeTarStore f = do
@@ -85,9 +104,11 @@ makeTarStore f = do
   let pad =  LBS.toStrict (c (LBS.replicate (1024) 0))
   return $ TarStore (h, c, pad, fromIntegral $ - (SBS.length pad))
 
+
 instance Service_Iface TarStore where
   about _ = return $ ServiceInfo "Tar-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
+
 
 instance StoreCommunicationService_Iface TarStore where
   store (TarStore (h, c, pad, o)) comm = do
