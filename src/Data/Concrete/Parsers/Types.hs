@@ -8,11 +8,12 @@ module Data.Concrete.Parsers.Types ( Bookkeeper(..)
 
 import Data.Text.Lazy (Text)
 import Data.Concrete.Autogen.Communication_Types (Communication)
-import Data.Concrete.Autogen.Structure_Types (Section, Sentence)
+import Data.Concrete.Autogen.Structure_Types (Section, Sentence, Token)
 import Text.Megaparsec (ParsecT)
 import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)
 import Control.Monad.State (StateT)
+import GHC.Int
 
 -- | A 'CommunicationAction' gets called on each Communication
 --   as parsing proceeds
@@ -57,11 +58,14 @@ data Bookkeeper = Bookkeeper { communication :: Communication
                              , valueMap :: Map String String -- | An arbitrary string-to-string map
                              , path :: [String]
                              , sections :: [Section] -- | List of Sections accumulated for the Communication currently being parsed
+                             , sentences :: [Sentence] -- | List of Sections accumulated for the Communication currently being parsed
+                             , tokens :: [Token] -- | List of Sections accumulated for the Communication currently being parsed
                              , action :: CommunicationAction
                              , contentSections :: [String]
                              , commId :: Text
                              , commType :: String
                              , commNum :: Int
+                             , offset :: GHC.Int.Int32
                              }
 
 -- | A StatefulParser is just a Megaparsec Parser that carries

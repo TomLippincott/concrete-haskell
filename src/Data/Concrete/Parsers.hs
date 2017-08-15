@@ -85,13 +85,13 @@ communicationParsers = [( "JSON"
                        --     , "id_${}"
                        --     )
                        --   )
-                       -- , ("CONLL-U"
-                       --   , ( "CONLL-U format"
-                       --     , CONLL.parser CONLL.ufields
-                       --     , []
-                       --     , "id_${}"
-                       --     )
-                       --   )
+                       , ("CONLL-U"
+                         , ( "CONLL-U format"
+                           , CONLL.parser CONLL.conllufields
+                           , ["sentence"]
+                           , "id_${}"
+                           )
+                         )
                        -- , ("HTML"
                        --   , ("HTML format"
                        --     , HTML.parser
@@ -122,7 +122,7 @@ ingest a p t cs i ct = do
                 , stateTokensProcessed=0
                 , stateTabWidth=unsafePos 8
                 }
-  ((_, e), _) <- runStateT (runParserT' (space >> p >> space >> eof) s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] a cs (pack i) ct 0)
+  ((_, e), _) <- runStateT (runParserT' (space >> p >> space >> eof) s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] a cs (pack i) ct 0 0)
   case e of
     Left x -> putStrLn $ parseErrorPretty x
     _ -> return ()

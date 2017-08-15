@@ -1,6 +1,8 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule
+                                   , sentenceRule
+                                   , tokenRule
                                    , pathDictionaryRule
                                    , pathDictionaryKeyRule                                   
                                    , pathArrayRule
@@ -22,18 +24,84 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State (State, get, put, modify, modify')
 import Data.Concrete.Autogen.Communication_Types (Communication(..), default_Communication)
-import Data.Concrete.Autogen.Structure_Types (Section(..), default_Section)
-import Data.Concrete.Autogen.Spans_Types (TextSpan(..), default_TextSpan)
+import Data.Concrete.Autogen.Structure_Types (Section(..), default_Section, Token(..), default_Token, Sentence(..), default_Sentence, TokenizationKind(..), Tokenization(..), default_Tokenization, TokenList(..), default_TokenList)
+import Data.Concrete.Autogen.Spans_Types (TextSpan(..), default_TextSpan, AudioSpan(..), default_AudioSpan)
 import Data.Concrete.Utils (getUUID, createAnnotationMetadata, incrementUUID)
 import Control.Monad.IO.Class (liftIO)
 import Data.Vector (Vector, fromList, snoc, empty, cons, toList)
+import qualified Data.Vector as V
 import Data.Maybe (fromJust)
 import Text.Printf (printf)
 
--- | Wraps a rule that corresponds to a single Communication
+-- | Wraps a rule corresponding to a Token
+tokenRule :: (Token -> Token) -> CommunicationParser a -> CommunicationParser a
+tokenRule t p = do
+  s <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  v <- p
+  e <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  bs@(Bookkeeper {..}) <- get
+  let token = t $ default_Token { token_textSpan=Just $ TextSpan (s - offset) (e - offset)
+                                , token_tokenIndex=fromIntegral $ length tokens
+                                }
+  put $ bs { tokens=token:tokens
+           }
+  return v
+  
+-- | Wraps a rule corresponding to a Sentence
+sentenceRule :: (Sentence -> Sentence) -> CommunicationParser a -> CommunicationParser a
+sentenceRule t p = do
+  s <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  v <- p
+  e <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  bs@(Bookkeeper {..}) <- get
+  u <- liftIO getUUID
+  m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
+  let tokenList = default_TokenList { tokenList_tokenList=V.fromList (reverse tokens)
+                                    }
+      tokenization = default_Tokenization { tokenization_tokenList=Just tokenList
+                                          , tokenization_metadata=m
+                                          , tokenization_uuid=u
+                                          , tokenization_kind=TOKEN_LIST
+                                          }
+      sentence = t $ default_Sentence { sentence_textSpan=Just $ TextSpan (s - offset) (e - offset)
+                                      , sentence_tokenization=Just tokenization
+                                      }
+  put $ bs { sentences=sentence:sentences
+           , tokens=[]
+           }
+  return v
+  
+-- | Wraps a rule corresponding to a Section
+sectionRule :: (Section -> Section) -> CommunicationParser a -> CommunicationParser a
+sectionRule t p = do
+  s <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  v <- p
+  e <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  bs@(Bookkeeper {..}) <- get
+  let path' = (intercalate "." (reverse path))
+      section = t $ default_Section { section_label=(Just . pack) path'
+                                    , section_textSpan=Just $ TextSpan s e
+                                    , section_sentenceList=if length sentences == 0 then Nothing else Just $ V.fromList sentences
+                                    }
+  if length path == 0
+    then
+    put $ bs { communication=communication { communication_sectionList=(cons section) <$> (communication_sectionList communication) }
+             , sentences=[]
+             , tokens=[]
+             }
+    else
+    put $ bs { communication=communication { communication_sectionList=(cons section) <$> (communication_sectionList communication) }
+             , sentences=[]
+             , tokens=[]
+             }
+  return v
+
+-- | Wraps a rule that corresponds to a Communication
 communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
 communicationRule tr p = do
-  offset <- (fromIntegral . stateTokensProcessed) <$> getParserState  
+  offset <- (fromIntegral . stateTokensProcessed) <$> getParserState
+  bs' <- get
+  put $ bs' { offset=offset }
   (t, o) <- match p
   bs@(Bookkeeper {..}) <- get
   let sections = (toList . fromJust) (communication_sectionList communication)
@@ -145,24 +213,6 @@ incrementPathComponent = do
   modify (\ bs -> bs { path=(show p'):(tail path) })
   return p'
 
--- | Wraps a rule corresponding to a Communication Section
-sectionRule :: (Section -> Section) -> CommunicationParser a -> CommunicationParser a
-sectionRule t p = do
-  s <- (fromIntegral . stateTokensProcessed) <$> getParserState
-  v <- p
-  e <- (fromIntegral . stateTokensProcessed) <$> getParserState
-  bs@(Bookkeeper {..}) <- get
-  let path' = (intercalate "." (reverse path))
-      section = t $ default_Section { section_label=(Just . pack) path'
-                                    , section_textSpan=Just $ TextSpan s e
-                                    }
-  if length path == 0
-    then
-    return ()
-    else
-    put $ bs { communication=communication { communication_sectionList=(cons section) <$> (communication_sectionList communication) } }
-  return v
-
 -- | A data structure that is positioned inside a document and whose boundaries can be adjusted
 class Located a where
   getTextSpan :: a -> TextSpan
@@ -178,3 +228,10 @@ instance Located Section where
   getTextSpan s = (fromJust . section_textSpan) s
   setTextSpan ts s = s { section_textSpan=Just ts }
   
+instance Located Sentence where
+  getTextSpan s = (fromJust . sentence_textSpan) s
+  setTextSpan ts s = s { sentence_textSpan=Just ts }
+
+instance Located Token where
+  getTextSpan s = (fromJust . token_textSpan) s
+  setTextSpan ts s = s { token_textSpan=Just ts }

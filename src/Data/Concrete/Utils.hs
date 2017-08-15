@@ -8,12 +8,15 @@ module Data.Concrete.Utils
        , commToString
        , incrementUUID
        , stringToComm
+       , getSectionText
+       , getCompressor
+       , getDecompressor
        ) where
 
 import GHC.Generics
 import Path.IO (resolveFile')
 import Data.Concrete.Autogen.Communication_Types (Communication(..), default_Communication, read_Communication, write_Communication)
-import Data.Concrete.Autogen.Structure_Types (Section(..))
+import Data.Concrete.Autogen.Structure_Types (Section(..), Sentence(..), Token(..), Tokenization(..), TokenList(..))
 import Data.Concrete.Autogen.Uuid_Types (UUID(..))
 import Data.Concrete.Autogen.Metadata_Types (AnnotationMetadata(..), default_AnnotationMetadata)
 import Data.Concrete.Autogen.Spans_Types (TextSpan(..))
@@ -53,7 +56,7 @@ import qualified Codec.Archive.Tar.Entry as Tar
 import qualified Codec.Archive.Tar.Index as Tar
 import Data.Time
 import Data.Time.Clock.POSIX
-import System.FilePath (takeFileName, (</>), (<.>))
+import System.FilePath (takeFileName, takeExtension, (</>), (<.>))
 import Data.Either (rights)
 import Control.Monad (liftM, join)
 import Data.Foldable (foldr)
@@ -61,7 +64,23 @@ import System.IO (Handle)
 import qualified Data.Vector as V
 import qualified Data.Binary.Get as G
 import qualified Control.Monad.Extra as E
-    
+
+getCompressor :: String -> (BS.ByteString -> BS.ByteString)
+getCompressor f = case takeExtension f of
+                    ".tgz" -> GZip.compress
+                    ".gz" -> GZip.compress
+                    ".bz2" -> BZip.compress
+                    ".tbz2" -> BZip.compress
+                    _ -> id
+
+getDecompressor :: String -> (BS.ByteString -> BS.ByteString)
+getDecompressor f = case takeExtension f of
+                      ".tgz" -> GZip.decompress
+                      ".gz" -> GZip.decompress
+                      ".bz2" -> BZip.decompress
+                      ".tbz2" -> BZip.decompress
+                      _ -> id
+
 getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
@@ -126,12 +145,29 @@ createAnnotationMetadata s = do
                                     , annotationMetadata_timestamp=time
                                     }
 
-showSection :: T.Text -> Section -> T.Text
-showSection t s = T.concat ["    ", ((fromMaybe "*NO LABEL*" . section_label) s), " == ", t']
+showToken :: T.Text -> Token -> T.Text
+showToken t s = full
   where
-    TextSpan s' e' = (fromJust . section_textSpan) s
+    TextSpan s' e' = (fromJust . token_textSpan) s    
+    full = substr t (fromIntegral s') (fromIntegral e')
+    
+showSentence :: T.Text -> Sentence -> T.Text
+showSentence t s = if sentence_tokenization s == Nothing then full else T.intercalate " " (L.map (showToken t) (V.toList tokens))
+  where
+    TextSpan s' e' = (fromJust . sentence_textSpan) s    
+    full = substr t (fromIntegral s') (fromIntegral e')
+    tl = (fromJust . join) $ tokenization_tokenList <$> sentence_tokenization s
+    tokens = tokenList_tokenList tl
+    --d = tl == _d
+
+showSection :: T.Text -> Section -> T.Text
+showSection t s = if sentences == Nothing then full else T.intercalate "\n" (L.map (showSentence t) (fromJust sentences))
+  where
+    sentences = V.toList <$> section_sentenceList s
+    TextSpan s' e' = (fromJust . section_textSpan) s    
     k = section_kind s
     t' = substr t (fromIntegral s') (fromIntegral e')
+    full = T.concat ["    ", ((fromMaybe "*NO LABEL*" . section_label) s), " == ", t']
 
 substr :: T.Text -> Int -> Int -> T.Text
 substr t s e = res
@@ -142,9 +178,17 @@ substr t s e = res
 showCommunication :: Communication -> T.Text
 showCommunication c = T.concat [communication_id c, " ", communication_type c, "\n  Content sections:\n", T.intercalate "\n" contentSects, "\n  ", metadataText]
   where
+    tt = (T.pack . show) c
     ss = L.concat $ L.map V.toList (maybeToList (communication_sectionList c))
     t = (fromJust . communication_text) c
     contentSects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
     metadataSects = L.map (fromMaybe "?" . section_label) ((L.filter (\x -> section_kind x /= "content")) ss)
     --metadataText = T.intercalate ", " metadataSects
     metadataText = T.concat [(T.pack . show) (L.length metadataSects), " metadata sections"]
+
+getSectionText :: Communication -> T.Text -> T.Text
+getSectionText c n = substr text (fromIntegral s) (fromIntegral e)
+  where
+    text = fromMaybe (error "No text field!") (communication_text c)    
+    sec = L.filter (\x -> ((fromJust . section_label) x) == n) ((V.toList . fromJust . communication_sectionList) c)
+    TextSpan s e = (fromJust . section_textSpan) (L.head sec)

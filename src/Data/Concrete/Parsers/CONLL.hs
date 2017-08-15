@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.CONLL
        ( parser
-       , xfields
-       , ufields
+       , conllxfields
+       , conllufields
+       , conll2009fields
        ) where
 
 import Data.List (intercalate)
@@ -52,15 +53,22 @@ import Data.Concrete.Autogen.Communication_Types (default_Communication, Communi
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 --import Data.Concrete.Types
-import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, pushPathComponent, popPathComponent)
+import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, sentenceRule, tokenRule, pushPathComponent, popPathComponent)
 
-ufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"] :: [Text]
-xfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD", "DEPREL", "PDEPREL"] :: [Text]
+conllxfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD"] :: [Text]
+
+conllufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"] :: [Text]
+
+conll2009fields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC", "DEPREL", "PDEPREL", "FILLPRED", "PRED"] ++ (map (\x -> pack $ "APRED" ++ (show x)) [1..16]) :: [Text]
 
 parser :: [Text] -> CommunicationParser ()
 parser fs = (communicationRule id (sentence fs)) `sepBy1` sentenceBreak >> return ()
-
-sentence fs = (some (commentLine <|> wordLine fs)) >> return ()
+  
+sentence fs = do
+  pushPathComponent "sentence"
+  (sectionRule id . sentenceRule id) $ (some (commentLine <|> wordLine fs))
+  popPathComponent
+  return ()
 
 commentLine = (char '#') >> (manyTill anyChar newline)
   
@@ -72,10 +80,8 @@ row fs = do
   newline
   return ()
 
-namedEntry f = do
-  pushPathComponent (unpack f)
-  t <- sectionRule id $ pack <$> (some (noneOf ['\t', '\n']))
-  popPathComponent
-  return t
+-- | Parse a CONLL cell, which if it's "FORM" should be treated as a Token
+namedEntry :: Text -> ParsecT Dec Text (S.StateT Bookkeeper IO) Text
+namedEntry f = if f == "FORM" then tokenRule id $ pack <$> (some (noneOf ['\t', '\n'])) else pack <$> (some (noneOf ['\t', '\n']))
 
 sentenceBreak = newline
