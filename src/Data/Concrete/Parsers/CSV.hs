@@ -10,6 +10,7 @@ import Data.Scientific (scientific, Scientific(..))
 import Data.Text.Lazy (pack, unpack, Text)
 import qualified Data.Text.Lazy as T
 import Data.Functor (($>))
+import Data.Maybe (fromJust)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.List.NonEmpty (fromList)
@@ -44,15 +45,14 @@ import Text.Megaparsec ( parseErrorPretty
                        )
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import Text.Megaparsec.Text.Lazy (Parser)
---import Data.Concrete (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
---import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, pushPathComponent, popPathComponent)
 
-parser :: Bool -> Char -> CommunicationParser ()
+-- | Parser for CSV files
+parser :: Maybe [Text] -> Char -> CommunicationParser ()
 parser h d = do
-  fs <- if h == True then header d else return []
+  fs <- if h == Nothing then header d else return $ fromJust h
   space
   withFields fs d
   space

@@ -36,23 +36,17 @@ import Control.Monad (liftM)
 import System.FilePath (takeExtension)
 import Control.Monad.IO.Class (liftIO)
 
-
 lift1st :: Monad m => (m a, b) -> m (a, b)
 lift1st (f, s) = do
   f' <- f
   return (f', s)
 
-
--- Handle-backed
-
-
+-- | Handle-based Store backend
 newtype HandleStore = HandleStore (Handle, Maybe Compression)
-
 
 instance Service_Iface HandleStore where
   about _ = return $ ServiceInfo "Flat-file-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True  
-
 
 instance StoreCommunicationService_Iface HandleStore where
   store (HandleStore (h, c)) comm = do
@@ -63,17 +57,12 @@ instance StoreCommunicationService_Iface HandleStore where
                Just BZip -> BZip.compress
     LBS.hPutStr h (c' t)
 
-
--- Zip-backed
-
-
+-- | Zip-based Store backend
 newtype ZipStore = ZipStore String
-
 
 instance Service_Iface ZipStore where
   about _ = return $ ServiceInfo "Zip-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
-
 
 instance StoreCommunicationService_Iface ZipStore where
   store (ZipStore ff) c = do
@@ -84,31 +73,26 @@ instance StoreCommunicationService_Iface ZipStore where
     liftIO $ Zip.withArchive f' $ Zip.addEntry Zip.BZip2 (LBS.toStrict bs) es
     return ()
 
-
+-- | Create a Zip-backed Store handler based on the given file
 makeZipStore :: String -> IO ZipStore
 makeZipStore f = return $ ZipStore f
 
-
--- Tar-backed
-
-
+-- | Tar-based Store backend
 newtype TarStore = TarStore (Handle, (LBS.ByteString -> LBS.ByteString), SBS.ByteString, Integer)
 
-
+-- | Create a Tar-backed Store handler based on the given file
 makeTarStore :: String -> IO TarStore
 makeTarStore f = do
   (h, c) <- case takeExtension f of
-              ".tgz" -> lift1st (openFile f WriteMode, GZip.compress)
-              ".tbz2" -> lift1st (openFile f WriteMode, BZip.compress)
+              --".tgz" -> lift1st (openFile f WriteMode, GZip.compress)
+              --".tbz2" -> lift1st (openFile f WriteMode, BZip.compress)
               ".tar" -> lift1st (openFile f WriteMode, id)
   let pad =  LBS.toStrict (c (LBS.replicate (1024) 0))
   return $ TarStore (h, c, pad, fromIntegral $ - (SBS.length pad))
 
-
 instance Service_Iface TarStore where
   about _ = return $ ServiceInfo "Tar-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
-
 
 instance StoreCommunicationService_Iface TarStore where
   store (TarStore (h, c, pad, o)) comm = do

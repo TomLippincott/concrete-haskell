@@ -46,23 +46,12 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.Lazy as T
 import Control.Monad (liftM)
 
-
--- Directory-backed
-
-
--- Handle-backed
-
-
--- Zip-backed
-
-
+-- | Zip-backed Fetch backend
 newtype ZipFetch = ZipFetch ((Map String Zip.EntrySelector), String)
-
 
 instance Service_Iface ZipFetch where
   about _ = return $ ServiceInfo "Zip-backed FetchCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
-
 
 instance FetchCommunicationService_Iface ZipFetch where
   fetch (ZipFetch (ms, f)) (FetchRequest ii _) = do
@@ -75,7 +64,7 @@ instance FetchCommunicationService_Iface ZipFetch where
   getCommunicationIDs (ZipFetch (ms, f)) offset count = return $ V.fromList $ ((map (pack . fst)) . genericTake count . genericDrop offset . Map.toList) ms
   getCommunicationCount (ZipFetch (ms, f)) = return ((genericLength . Map.toList) ms)
 
-
+-- | Create a Zip-backed Fetch handler based on the given file
 makeZipFetch :: String -> IO ZipFetch
 makeZipFetch f = do
   f' <- resolveFile' f  
@@ -86,17 +75,12 @@ makeZipFetch f = do
                                   return (T.unpack $ communication_id c, e)) (Map.keys es)
   return $ ZipFetch (ms, f)
 
-
--- Tar-backed
-
-
+-- | Tar-backed Fetch backend
 newtype TarFetch = TarFetch (Handle, (LBS.ByteString -> LBS.ByteString), Tar.TarIndex, Map String FilePath)
-
 
 instance Service_Iface TarFetch where
   about _ = return $ ServiceInfo "Tar-backed FetchCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
-
 
 instance FetchCommunicationService_Iface TarFetch where
   fetch (TarFetch (h, c, i, l)) ii = do
@@ -111,7 +95,7 @@ instance FetchCommunicationService_Iface TarFetch where
   getCommunicationIDs (TarFetch (_, _, _, l)) offset count = return $ V.fromList $ ((map (pack . fst)) . genericTake count . genericDrop offset . Map.toList) l
   getCommunicationCount (TarFetch (_, _, _, l)) = return ((genericLength . Map.toList) l)
 
-
+-- | Create a Tar-backed Fetch handler based on the given file
 makeTarFetch :: String -> IO TarFetch
 makeTarFetch f = do
   let c = case takeExtension f of
@@ -125,10 +109,8 @@ makeTarFetch f = do
   h' <- openFile f ReadMode
   return $ TarFetch (h, c, i, Map.fromList l)
 
-
 commFromEntry :: Tar.Entry -> IO Communication
 commFromEntry e = stringToComm (((\ (Tar.NormalFile bs _) -> bs) . Tar.entryContent) e)
-
 
 build :: Tar.Entries e -> IO ([(String, FilePath)], Tar.TarIndex)
 build = go ([], Tar.empty)

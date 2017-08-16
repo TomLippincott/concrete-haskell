@@ -55,12 +55,8 @@ library:
     - Data.Concrete.Parsers.Utils
     - Data.Concrete.Parsers.JSON
     - Data.Concrete.Parsers.CONLL
-    - Data.Concrete.Parsers.Email
-    - Data.Concrete.Parsers.XML
     - Data.Concrete.Parsers.CSV
-    - Data.Concrete.Parsers.HTML
     - Data.Concrete.Parsers.PTB
-    - Data.Concrete.Parsers.RFC2822
 
 executables:
   ingest_communications:

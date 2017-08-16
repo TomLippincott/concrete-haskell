@@ -37,7 +37,7 @@ import qualified Data.Concrete.Parsers.CSV as CSV
 import qualified Data.Concrete.Parsers.Email as Email
 import qualified Data.Concrete.Parsers.PTB as PTB
 
-
+-- | List of ingest configurations and default parameters
 communicationParsers = [( "JSON"
                         , ( "JSON array of arbitrary objects"
                           , JSON.parser
@@ -58,7 +58,7 @@ communicationParsers = [( "JSON"
                          )
                        , ( "CSV"
                          , ( "CSV format (with header, commas)"
-                           , CSV.parser True ','
+                           , CSV.parser Nothing ','
                            , [ "technology"
                              , "Bush"
                              , "Gore"
@@ -103,6 +103,7 @@ communicationParsers = [( "JSON"
                        --   )
                        ]
 
+-- | Run CommunicationAction on each entry created during the ingest process
 ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()
 ingest a p t cs i ct = do
   let s = State { stateInput=t

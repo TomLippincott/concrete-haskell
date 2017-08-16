@@ -12,7 +12,6 @@ module Data.Concrete.Utils
        , commToString
        , incrementUUID
        , stringToComm
-       , getSectionText
        , getCompressor
        , getDecompressor
        ) where
@@ -69,6 +68,7 @@ import qualified Data.Vector as V
 import qualified Data.Binary.Get as G
 import qualified Control.Monad.Extra as E
 
+-- | Returns appropriate compression based on a file name
 getCompressor :: String -> (BS.ByteString -> BS.ByteString)
 getCompressor f = case takeExtension f of
                     ".tgz" -> GZip.compress
@@ -77,6 +77,7 @@ getCompressor f = case takeExtension f of
                     ".tbz2" -> BZip.compress
                     _ -> id
 
+-- | Returns appropriate decompression based on a file name
 getDecompressor :: String -> (BS.ByteString -> BS.ByteString)
 getDecompressor f = case takeExtension f of
                       ".tgz" -> GZip.decompress
@@ -85,23 +86,28 @@ getDecompressor f = case takeExtension f of
                       ".tbz2" -> BZip.decompress
                       _ -> id
 
+-- | Returns a randomly-generated Concrete UUID
 getUUID :: IO UUID
 getUUID = do
   uuid <- (T.pack . toString) <$> nextRandom
   return $ UUID uuid
 
+-- | Increments the fourth section of a UUID by 1
 incrementUUID :: UUID -> UUID
 incrementUUID (UUID u) = case toWords (fromMaybe nil $ fromString (T.unpack u)) of
   (a, b, c, d) -> UUID $ (T.pack . toString) (fromWords a b c (d + 1))
 
+-- | Serialize and write a Communication to a file handle
 writeCommunication :: Handle -> Communication -> IO ()
 writeCommunication out c = do
   t <- commToString c
   BS.hPutStr out t
 
+-- | Convert a Tar entry to a byte string
 entryToString :: Tar.EntryContent -> BS.ByteString
 entryToString (Tar.NormalFile s _) = s
 
+-- | A data type for treating strings as Thrift transports
 data TString = TString ReadBuffer WriteBuffer
 
 getWrite :: TString -> WriteBuffer
@@ -127,7 +133,8 @@ instance Transport TString where
     tPeek (TString r w) = peekBuf r
     tWrite (TString r w) bs = writeBuf w bs
     tFlush (TString r w) = flushBuf w >> return ()
-  
+
+-- | Convert a Communication to a string using the Compact protocol
 commToString :: Communication -> IO BS.ByteString
 commToString c = do  
   otransport <- newTString
@@ -135,6 +142,7 @@ commToString c = do
   write_Communication oproto c
   flushBuf (getWrite otransport)
 
+-- | Convert a string to a Communication using the Compact protocol
 stringToComm :: BS.ByteString -> IO Communication
 stringToComm s = do
   otransport@(TString r w) <- newTString
@@ -142,6 +150,7 @@ stringToComm s = do
   let oproto = CompactProtocol otransport
   read_Communication oproto
 
+-- | Generate a Concrete AnnotationMetadata with the given tool name and current time
 createAnnotationMetadata :: String -> IO AnnotationMetadata
 createAnnotationMetadata s = do
   time <- round `fmap` getPOSIXTime
@@ -149,12 +158,13 @@ createAnnotationMetadata s = do
                                     , annotationMetadata_timestamp=time
                                     }
 
+-- | Reconstruct a Token given its Communication's text field
 showToken :: T.Text -> Token -> T.Text
-showToken t s = full
+showToken t s = substr t (fromIntegral s') (fromIntegral e')
   where
     TextSpan s' e' = (fromJust . token_textSpan) s    
-    full = substr t (fromIntegral s') (fromIntegral e')
-    
+
+-- | Reconstruct a Sentence given its Communication's text field
 showSentence :: T.Text -> Sentence -> T.Text
 showSentence t s = if sentence_tokenization s == Nothing then full else T.intercalate " " (L.map (showToken t) (V.toList tokens))
   where
@@ -162,8 +172,8 @@ showSentence t s = if sentence_tokenization s == Nothing then full else T.interc
     full = substr t (fromIntegral s') (fromIntegral e')
     tl = (fromJust . join) $ tokenization_tokenList <$> sentence_tokenization s
     tokens = tokenList_tokenList tl
-    --d = tl == _d
 
+-- | Reconstruct a Section given its Communication's text field
 showSection :: T.Text -> Section -> T.Text
 showSection t s = if sentences == Nothing then full else T.intercalate "\n" (L.map (showSentence t) (fromJust sentences))
   where
@@ -173,12 +183,7 @@ showSection t s = if sentences == Nothing then full else T.intercalate "\n" (L.m
     t' = substr t (fromIntegral s') (fromIntegral e')
     full = T.concat ["    ", ((fromMaybe "*NO LABEL*" . section_label) s), " == ", t']
 
-substr :: T.Text -> Int -> Int -> T.Text
-substr t s e = res
-  where
-    (_, start) = T.splitAt (fromIntegral s) t    
-    res = T.take (fromIntegral $ e - s) start
-
+-- | Construct a human-readable Communication
 showCommunication :: Communication -> T.Text
 showCommunication c = T.concat [communication_id c, " ", communication_type c, "\n  Content sections:\n", T.intercalate "\n" contentSects, "\n  ", metadataText]
   where
@@ -187,12 +192,11 @@ showCommunication c = T.concat [communication_id c, " ", communication_type c, "
     t = (fromJust . communication_text) c
     contentSects = L.map (showSection t) ((L.filter (\x -> section_kind x == "content")) ss)
     metadataSects = L.map (fromMaybe "?" . section_label) ((L.filter (\x -> section_kind x /= "content")) ss)
-    --metadataText = T.intercalate ", " metadataSects
     metadataText = T.concat [(T.pack . show) (L.length metadataSects), " metadata sections"]
 
-getSectionText :: Communication -> T.Text -> T.Text
-getSectionText c n = substr text (fromIntegral s) (fromIntegral e)
+-- | Extract a substring from a Text
+substr :: T.Text -> Int -> Int -> T.Text
+substr t s e = res
   where
-    text = fromMaybe (error "No text field!") (communication_text c)    
-    sec = L.filter (\x -> ((fromJust . section_label) x) == n) ((V.toList . fromJust . communication_sectionList) c)
-    TextSpan s e = (fromJust . section_textSpan) (L.head sec)
+    (_, start) = T.splitAt (fromIntegral s) t    
+    res = T.take (fromIntegral $ e - s) start

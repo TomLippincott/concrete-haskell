@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.CONLL
        ( parser
+       , singleParser
        , conllxfields
        , conllufields
        , conll2009fields
@@ -55,14 +56,24 @@ import qualified Control.Monad.Identity as I
 --import Data.Concrete.Types
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, sentenceRule, tokenRule, pushPathComponent, popPathComponent)
 
+-- | Field names for the CONLL-X format
 conllxfields = ["ID", "FORM", "LEMMA", "PLEMMA", "POS", "PPOS", "FEAT", "PFEAT", "HEAD", "PHEAD"] :: [Text]
 
+-- | Field names for the CONLL-U format
 conllufields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC"] :: [Text]
 
+-- | Field names for the CONLL2009 format
 conll2009fields = ["ID", "FORM", "LEMMA", "UPOSTAG", "XPOSTAG", "FEATS", "HEAD", "DEPREL", "DEPS", "MISC", "DEPREL", "PDEPREL", "FILLPRED", "PRED"] ++ (map (\x -> pack $ "APRED" ++ (show x)) [1..16]) :: [Text]
 
+-- | Parses different flavors of CONLL depending on which fields are passed as arguments
+--   Each sentence is made into its own Communication
 parser :: [Text] -> CommunicationParser ()
 parser fs = (communicationRule id (sentence fs)) `sepBy1` sentenceBreak >> return ()
+
+-- | Parses different flavors of CONLL depending on which fields are passed as arguments
+--   All input sentences are placed in a single Communication
+singleParser :: [Text] -> CommunicationParser ()
+singleParser fs = (communicationRule id (sentence fs)) `sepBy1` sentenceBreak >> return ()
   
 sentence fs = do
   pushPathComponent "sentence"

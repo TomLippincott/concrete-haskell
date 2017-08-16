@@ -44,7 +44,6 @@ import Text.Megaparsec.Text.Lazy (Parser)
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
---import Data.Concrete (default_Communication, Communication(..), Section(..), TextSpan(..))
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
 import Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule
@@ -59,9 +58,11 @@ import Data.Concrete.Parsers.Utils ( communicationRule
                                    , incrementPathComponent
                                    )
 
+-- | Parses an array of JSON objects, turning each into a Communication
 parser :: CommunicationParser ()
 parser = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
 
+-- | Parses a sequence of JSON objects (i.e. not a valid JSON object overall), like one object per line
 lineParser :: CommunicationParser ()
 lineParser = (many (communicationRule id objectP)) >> return ()
 

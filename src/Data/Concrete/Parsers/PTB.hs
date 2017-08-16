@@ -49,6 +49,8 @@ import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, sentenceRule, tokenRule, pushPathComponent, popPathComponent)
 
+-- | Parser for PENN Treebank format
+--   NOTE: currently, doesn't capture tags/parses
 parser :: CommunicationParser ()
 parser = do
   space
