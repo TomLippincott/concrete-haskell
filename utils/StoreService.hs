@@ -26,9 +26,9 @@ main = do
   ps <- unwrapRecord "Run a file-backed Store service: supports .tar and .tgz"
   let f = file ps
   case takeExtension f of
-    ".zip" -> do
-      h <- makeZipStore f
-      runConcreteService (port ps) process h
+    --".zip" -> do
+    --  h <- makeZipStore f
+    --  runConcreteService (port ps) process h
     ".tar" -> do
       h <- makeTarStore f
       runConcreteService (port ps) process h

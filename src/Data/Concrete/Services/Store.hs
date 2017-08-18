@@ -21,7 +21,7 @@ import qualified Codec.Archive.Tar.Index as Tar
 import System.IO (Handle, hSeek, hTell, hFlush, SeekMode(..))
 import qualified Data.Text.Lazy as T
 import qualified Data.List as L
-import Path.IO (resolveFile')
+import Path.IO (resolveFile', doesFileExist)
 import Data.Either (rights)
 import Path (Path, Dir, File, Abs, filename)
 import Data.Concrete.Services (Compression(..))
@@ -42,7 +42,7 @@ lift1st (f, s) = do
   return (f', s)
 
 -- | Handle-based Store backend
-newtype HandleStore = HandleStore (Handle, Maybe Compression)
+newtype HandleStore = HandleStore (Handle, (LBS.ByteString -> LBS.ByteString))
 
 instance Service_Iface HandleStore where
   about _ = return $ ServiceInfo "Flat-file-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
@@ -51,31 +51,38 @@ instance Service_Iface HandleStore where
 instance StoreCommunicationService_Iface HandleStore where
   store (HandleStore (h, c)) comm = do
     t <- commToString comm
-    let c' = case c of
-               Nothing -> id
-               Just GZip -> GZip.compress
-               Just BZip -> BZip.compress
-    LBS.hPutStr h (c' t)
+    LBS.hPutStr h (c t)
 
+makeHandleStore :: String -> IO HandleStore
+makeHandleStore f = do
+  let c = case takeExtension f of
+            ".gz" -> GZip.compress
+            ".bz2" -> BZip.compress
+            _ -> id
+  fd <- openFile f WriteMode
+  return $ HandleStore (fd, c)
+  
 -- | Zip-based Store backend
-newtype ZipStore = ZipStore String
+newtype ZipStore = ZipStore (Path Abs File)
 
 instance Service_Iface ZipStore where
   about _ = return $ ServiceInfo "Zip-backed StoreCommunicationService" "0.0.1" (Just "Haskell implementation")
   alive _ = return True
 
 instance StoreCommunicationService_Iface ZipStore where
-  store (ZipStore ff) c = do
-    f' <- resolveFile' ff
+  store (ZipStore f) c = do
     bs <- commToString c
-    f <- filename <$> resolveFile' ((T.unpack . communication_id) c)
-    es <- Zip.mkEntrySelector f
-    liftIO $ Zip.withArchive f' $ Zip.addEntry Zip.BZip2 (LBS.toStrict bs) es
-    return ()
+    p <- filename <$> resolveFile' ((T.unpack . communication_id) c)
+    es <- Zip.mkEntrySelector p
+    Zip.withArchive f $ Zip.addEntry Zip.Deflate (LBS.toStrict bs) es
 
 -- | Create a Zip-backed Store handler based on the given file
 makeZipStore :: String -> IO ZipStore
-makeZipStore f = return $ ZipStore f
+makeZipStore f = do
+  f' <- resolveFile' f
+  e <- doesFileExist f'
+  if e == False then Zip.createArchive f' $ return () else return ()
+  return $ ZipStore f'
 
 -- | Tar-based Store backend
 newtype TarStore = TarStore (Handle, (LBS.ByteString -> LBS.ByteString), SBS.ByteString, Integer)
