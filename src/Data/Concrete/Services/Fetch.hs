@@ -6,7 +6,9 @@
 Description: Implementations of FetchCommunicationService for various backends
 -}
 
-module Data.Concrete.Services.Fetch ( ZipFetch(..)
+module Data.Concrete.Services.Fetch ( HandleFetch(..)
+                                    , makeHandleFetch
+                                    , ZipFetch(..)
                                     , makeZipFetch
                                     , TarFetch(..)
                                     , makeTarFetch                                    
@@ -46,7 +48,22 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.Lazy as T
 import Control.Monad (liftM)
 
--- | Zip-backed Fetch backend
+-- | Handle-based Fetch backend
+newtype HandleFetch = HandleFetch Handle
+
+instance Service_Iface HandleFetch where
+  about _ = return $ ServiceInfo "Handle-backed FetchCommunicationService" "0.0.1" (Just "Haskell implementation")
+  alive _ = return True
+
+instance FetchCommunicationService_Iface HandleFetch where
+  fetch _ (FetchRequest ii _) = error "unimplemented"
+  getCommunicationIDs _ offset count = error "unimplemented"
+  getCommunicationCount _ = error "unimplemented"
+
+makeHandleFetch :: String -> IO HandleFetch
+makeHandleFetch f = error "unimplemented"
+
+-- | Zip-based Fetch backend
 newtype ZipFetch = ZipFetch ((Map String Zip.EntrySelector), String)
 
 instance Service_Iface ZipFetch where
@@ -64,7 +81,7 @@ instance FetchCommunicationService_Iface ZipFetch where
   getCommunicationIDs (ZipFetch (ms, f)) offset count = return $ V.fromList $ ((map (pack . fst)) . genericTake count . genericDrop offset . Map.toList) ms
   getCommunicationCount (ZipFetch (ms, f)) = return ((genericLength . Map.toList) ms)
 
--- | Create a Zip-backed Fetch handler based on the given file
+-- | Create a Zip-based Fetch handler based on the given file
 makeZipFetch :: String -> IO ZipFetch
 makeZipFetch f = do
   f' <- resolveFile' f  
@@ -75,7 +92,7 @@ makeZipFetch f = do
                                   return (T.unpack $ communication_id c, e)) (Map.keys es)
   return $ ZipFetch (ms, f)
 
--- | Tar-backed Fetch backend
+-- | Tar-based Fetch backend
 newtype TarFetch = TarFetch (Handle, (LBS.ByteString -> LBS.ByteString), Tar.TarIndex, Map String FilePath)
 
 instance Service_Iface TarFetch where
@@ -95,7 +112,7 @@ instance FetchCommunicationService_Iface TarFetch where
   getCommunicationIDs (TarFetch (_, _, _, l)) offset count = return $ V.fromList $ ((map (pack . fst)) . genericTake count . genericDrop offset . Map.toList) l
   getCommunicationCount (TarFetch (_, _, _, l)) = return ((genericLength . Map.toList) l)
 
--- | Create a Tar-backed Fetch handler based on the given file
+-- | Create a Tar-based Fetch handler based on the given file
 makeTarFetch :: String -> IO TarFetch
 makeTarFetch f = do
   let c = case takeExtension f of

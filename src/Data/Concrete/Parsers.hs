@@ -44,7 +44,7 @@ communicationParsers = [( "JSON"
                           , [ "catchphrase"
                             , "relatives.0.name"
                             ]
-                          , "id_${name}"
+                          , "json_${name}"
                           )
                         )
                        , ( "JSON-LINES"
@@ -53,7 +53,7 @@ communicationParsers = [( "JSON"
                            , [ "author"
                              , "subreddit"
                              ]
-                           , "id_${name}"
+                           , "json-lines_${name}"
                            )
                          )
                        , ( "CSV"
@@ -63,21 +63,21 @@ communicationParsers = [( "JSON"
                              , "Bush"
                              , "Gore"
                              ]
-                           , "id_${county}"
+                           , "csv_${county}"
                            )
                          )
                        , ("CONLL-U"
                          , ( "CONLL-U format"
                            , CONLL.parser CONLL.conllufields
                            , ["sentence"]
-                           , "id_${}"
+                           , "conll_${}"
                            )
                          )
                        , ( "PTB"
                          , ( "PENN Treebank format"
                            , PTB.parser
                            , ["sentence"]
-                           , "id_${}"
+                           , "ptb_${}"
                            )
                          )
                        -- , ("HTML"

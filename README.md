@@ -1,8 +1,10 @@
 # Concrete Haskell library
 
+This library builds on top of `concrete-haskell-autogen`, adding convenience code and a number of optimized service implementations.  Currently, it's main purpose is to provide more sophisticated ingest of various complex data formats, data inspection, and implementations of fundamental services like FetchCommunicationService and StoreCommunicationService.
+
 ## Installation
 
-End-users with a recent GHC version can run `cabal install concrete-haskell`.  
+End-users with a recent GHC version can run `cabal install concrete-haskell` (NOTE: as of 9/2017 this doesn't work smoothly due to dependencies, so for the moment, use the method described below).
 
 For development, the environment is managed by [Stack](https://docs.haskellstack.org/en/stable/README/) which is quite heavy-weight as it completely sand-boxes the full Haskell compiler and all libraries by default.  You will need the zlib and bz2lib compression libraries installed, and you can install stack and put it on your executable path with:
 
@@ -40,7 +42,16 @@ allow-newer: true
 
 You should now be able to run `stack build`, `stack install`, `stack test`, and so forth.  The first time you run one of these commands, it will take a while to build all the dependencies and so forth (maybe 10 minutes or so), but thereafter should only be recompiling code that changes.
 
-## Inspecting Data
+## Command-line tools
+
+Running `stack install` will compile and install several tools to `~/.local/bin`:
+
+*  inspect_communications
+*  ingest_communications
+*  fetch_service
+*  store_service
+
+### Inspecting Data
 
 Currently, the `inspect_communications` tool only handles gzipped Communications (*not* Tar files of Communications) due to this being the focus of `ingest_communications`.  Expanding to handle various compression (gz, bz2, etc) and archiving (tar, zip) formats is straightforward and this functionality will be here soon.
 
@@ -60,20 +71,20 @@ zcat JSON.gz | ingest_communications -f JSON -t "Tweet" -I 'Twitter #${id}' -s t
 
 This would turn a top-level array of JSON objects into Communications with type "Tweet", each ID of the format "Twitter #ID", and treating the "text" field of the JSON objects as content.
 
+### Fetch and Store services
+
 ### Implementation State
 
 It currently handles:
 
 *  JSON
-
-In the near future, it should handle:
-
-*  CONLL-X
-*  Email (RFC2822)
+*  CONLL-X/U/2009
 *  CSV
-
+*  Penn Treebank
 
 This uses the parser associated with FORMAT, telling it to produce Communications where comm.type=TYPE, comm.id=ID, sections of kinds KIND1 and KIND2 are considered "content" and others are considered "metadata", and writes them to standard output as a gzipped stream (*not* as a gzipped Tar file).  If your format is supported by concrete-haskell, check the brief description above to determine if you need to do anything beforehand.  If your data is valid according to the relevant spec, it should work: failure on e.g. valid JSON is a bug, so please open a ticket.
+
+## Extending
 
 ### Defining a New Parser
 

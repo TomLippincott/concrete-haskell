@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 module Main (main) where
 
 import Data.ByteString.Lazy (ByteString)
@@ -22,13 +24,18 @@ import Data.Concrete.Autogen.Communication_Types (default_Communication, Communi
 import Text.Printf (printf)
 import qualified Control.Concurrent as C
 import qualified Control.Concurrent.STM as S
-import Data.Concrete.Services.Store (ZipStore(..), TarStore(..), process, makeTarStore, makeZipStore)
+import qualified Data.Concrete.Services.Store as Store
+import qualified Data.Concrete.Services.Fetch as Fetch
+import Data.Concrete.Services.Store (ZipStore(..), TarStore(..), HandleStore(..), makeTarStore, makeZipStore, makeHandleStore)
+import Data.Concrete.Services.Fetch (ZipFetch(..), TarFetch(..), HandleFetch(..), makeTarFetch, makeZipFetch, makeHandleFetch)
 import Data.Concrete.Services (runConcreteService, Compression(..), connectToService)
 import qualified Data.Concrete.Autogen.FetchCommunicationService_Client as FetchService
 import qualified Data.Concrete.Autogen.StoreCommunicationService_Client as StoreService
 import qualified Data.Concrete.Autogen.Service_Client as Service
+import Data.Concrete.Autogen.Access_Types (FetchRequest(..), default_FetchRequest, FetchResult(..))
 import System.IO.Unsafe
 import qualified Codec.Compression.GZip as GZip
+import qualified Data.Vector as V
 
 
 testFormat :: (String, (desc, CommunicationParser (), [String], String)) -> IO ()
@@ -44,17 +51,48 @@ testFormat (f, (d, p, c, i)) = do
   return ()
 
 
+testFetch :: IO ()
+testFetch = do
+  putStrLn "Testing fetch service:"
+  con <- connectToService "localhost" 9091
+  c <- FetchService.getCommunicationCount con
+  putStrLn $ printf "\tFetch service reports %d Communications" c
+  ids <- FetchService.getCommunicationIDs con 0 c
+  putStrLn $ printf "\tReceived %d Communication IDs" (length ids)
+  FetchResult {..} <- FetchService.fetch con $ default_FetchRequest { fetchRequest_communicationIds=ids }
+  sequence $ map (putStrLn . printf "\t\tFetched Communication with ID == %s" . T.unpack . communication_id) (V.toList fetchResult_communications)
+  return ()
+  
+
 main = do
-  putStrLn "\nTesting parsers:"
-  let outputFile = "test.zip"
+  putStrLn "\nTesting parsers + fetch and store services:"
+  let outputFile = "test.tar"
   store <- C.forkIO $ do
     case takeExtension outputFile of
       ".zip" -> do
         h <- makeZipStore outputFile
-        runConcreteService 9090 process h
+        runConcreteService 9090 Store.process h
       ".tar" -> do
         h <- makeTarStore outputFile
-        runConcreteService 9090 process h
+        runConcreteService 9090 Store.process h
+      _ -> do
+        h <- makeHandleStore outputFile
+        runConcreteService 9090 Store.process h
   C.threadDelay 1000000
   sequence $ map testFormat (communicationParsers)
-  C.killThread store
+  C.killThread store  
+  C.threadDelay 1000000
+  fetch <- C.forkIO $ do
+    case takeExtension outputFile of
+      ".zip" -> do
+        h <- makeZipFetch outputFile
+        runConcreteService 9091 Fetch.process h
+      ".tar" -> do
+        h <- makeTarFetch outputFile
+        runConcreteService 9091 Fetch.process h
+      _ -> do
+        h <- makeHandleFetch outputFile
+        runConcreteService 9091 Fetch.process h
+  C.threadDelay 1000000
+  testFetch
+  C.killThread fetch

@@ -5,9 +5,11 @@ Description: Implementations of StoreCommunicationService
 
 module Data.Concrete.Services.Store ( ZipStore(..)
                                     , TarStore(..)
+                                    , HandleStore(..)
                                     , process
                                     , makeTarStore
                                     , makeZipStore
+                                    , makeHandleStore
                                     ) where
 
 import qualified Data.ByteString as SBS
