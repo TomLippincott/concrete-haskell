@@ -36,18 +36,20 @@ import Data.Concrete.Autogen.Access_Types (FetchRequest(..), default_FetchReques
 import System.IO.Unsafe
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.Vector as V
+import System.Exit (exitWith, ExitCode(..))
 
-
-testFormat :: (String, (desc, CommunicationParser (), [String], String)) -> IO ()
+testFormat :: (String, (desc, CommunicationParser [Communication], [String], String)) -> IO ()
 testFormat (f, (d, p, c, i)) = do
   let inputFile = printf "tests/data/example.%s.gz" f :: String
   putStrLn (printf "\t%s" f :: String)
   con <- connectToService "localhost" 9090
   ih <- (liftM GZip.decompress . BS.readFile) inputFile
   let (_, cp, _, _) = (Map.fromList communicationParsers) ! f
-  ingest (\c -> do
-             putStrLn $ printf "\t\t%s" (communication_id c)
-             StoreService.store con c) p (decodeUtf8 ih) c i "concrete-haskell unit test data"
+  cs <- ingest p (decodeUtf8 ih) c i "concrete-haskell unit test data"
+  print $ length cs
+  -- (\c -> do
+  --                  putStrLn $ printf "\t\t%s" (communication_id c)
+  --                  StoreService.store con c) 
   return ()
 
 
@@ -66,7 +68,7 @@ testFetch = do
 
 main = do
   putStrLn "\nTesting parsers + fetch and store services:"
-  let outputFile = "test.tar"
+  let outputFile = "test.gz"
   store <- C.forkIO $ do
     case takeExtension outputFile of
       ".zip" -> do
@@ -79,20 +81,21 @@ main = do
         h <- makeHandleStore outputFile
         runConcreteService 9090 Store.process h
   C.threadDelay 1000000
-  sequence $ map testFormat (communicationParsers)
-  C.killThread store  
-  C.threadDelay 1000000
-  fetch <- C.forkIO $ do
-    case takeExtension outputFile of
-      ".zip" -> do
-        h <- makeZipFetch outputFile
-        runConcreteService 9091 Fetch.process h
-      ".tar" -> do
-        h <- makeTarFetch outputFile
-        runConcreteService 9091 Fetch.process h
-      _ -> do
-        h <- makeHandleFetch outputFile
-        runConcreteService 9091 Fetch.process h
-  C.threadDelay 1000000
-  testFetch
-  C.killThread fetch
+  sequence $ map testFormat communicationParsers
+  C.killThread store
+  exitWith (ExitFailure 1)
+  -- C.threadDelay 1000000
+  -- fetch <- C.forkIO $ do
+  --   case takeExtension outputFile of
+  --     ".zip" -> do
+  --       h <- makeZipFetch outputFile
+  --       runConcreteService 9091 Fetch.process h
+  --     ".tar" -> do
+  --       h <- makeTarFetch outputFile
+  --       runConcreteService 9091 Fetch.process h
+  --     _ -> do
+  --       h <- makeHandleFetch outputFile
+  --       runConcreteService 9091 Fetch.process h
+  -- C.threadDelay 1000000
+  -- testFetch
+  -- C.killThread fetch

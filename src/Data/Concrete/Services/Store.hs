@@ -10,6 +10,7 @@ module Data.Concrete.Services.Store ( ZipStore(..)
                                     , makeTarStore
                                     , makeZipStore
                                     , makeHandleStore
+                                    , storeDirect
                                     ) where
 
 import qualified Data.ByteString as SBS
@@ -32,11 +33,14 @@ import Data.Concrete.Autogen.Service_Iface (Service_Iface(about, alive))
 import Data.Concrete.Autogen.Services_Types (ServiceInfo(..))
 import Data.Concrete.Autogen.StoreCommunicationService_Iface (StoreCommunicationService_Iface(store))
 import Data.Concrete.Autogen.StoreCommunicationService (process)
-import Data.Concrete.Utils (commToString)
+import Data.Concrete.Utils (commToString, getCompressor)
 import System.IO (openFile, IOMode(..))
 import Control.Monad (liftM)
 import System.FilePath (takeExtension)
 import Control.Monad.IO.Class (liftIO)
+
+storeDirect :: StoreCommunicationService_Iface a => a -> [Communication] -> IO ()
+storeDirect s cs = (sequence $ map (store s) cs) >> return ()
 
 lift1st :: Monad m => (m a, b) -> m (a, b)
 lift1st (f, s) = do
@@ -57,10 +61,7 @@ instance StoreCommunicationService_Iface HandleStore where
 
 makeHandleStore :: String -> IO HandleStore
 makeHandleStore f = do
-  let c = case takeExtension f of
-            ".gz" -> GZip.compress
-            ".bz2" -> BZip.compress
-            _ -> id
+  let c = getCompressor f
   fd <- openFile f WriteMode
   return $ HandleStore (fd, c)
   

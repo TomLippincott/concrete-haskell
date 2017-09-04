@@ -14,6 +14,7 @@ module Data.Concrete.Utils
        , stringToComm
        , getCompressor
        , getDecompressor
+       , substr
        ) where
 
 import GHC.Generics

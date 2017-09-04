@@ -13,6 +13,7 @@ module Data.Concrete.Services.Fetch ( HandleFetch(..)
                                     , TarFetch(..)
                                     , makeTarFetch                                    
                                     , process
+                                    , fetchDirect
                                     ) where
 
 import System.IO (Handle)
@@ -41,6 +42,7 @@ import Data.Concrete.Autogen.Services_Types (ServiceInfo(..))
 import Data.Concrete.Autogen.Access_Types (FetchResult(..), default_FetchResult, FetchRequest(..))
 import Data.Concrete.Autogen.FetchCommunicationService_Iface (FetchCommunicationService_Iface(fetch, getCommunicationIDs, getCommunicationCount))
 import Data.Concrete.Autogen.FetchCommunicationService (process)
+import Data.Concrete.Utils (getDecompressor)
 import Data.List (genericDrop, genericTake, genericLength)
 import Data.Text.Lazy (Text, pack, unpack)
 import Path.IO (resolveFile')
@@ -48,8 +50,15 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Text.Lazy as T
 import Control.Monad (liftM)
 
+fetchDirect :: FetchCommunicationService_Iface a => a -> IO [Communication]
+fetchDirect f = do
+  n <- getCommunicationCount f
+  is <- getCommunicationIDs f 0 n
+  FetchResult cs <- fetch f (FetchRequest is Nothing)
+  return $ V.toList cs    
+
 -- | Handle-based Fetch backend
-newtype HandleFetch = HandleFetch Handle
+newtype HandleFetch = HandleFetch (Handle, Map String Int)
 
 instance Service_Iface HandleFetch where
   about _ = return $ ServiceInfo "Handle-backed FetchCommunicationService" "0.0.1" (Just "Haskell implementation")
@@ -61,7 +70,11 @@ instance FetchCommunicationService_Iface HandleFetch where
   getCommunicationCount _ = error "unimplemented"
 
 makeHandleFetch :: String -> IO HandleFetch
-makeHandleFetch f = error "unimplemented"
+makeHandleFetch f = do
+  let c = getDecompressor f
+  h <- openFile f ReadMode
+  let m = Map.empty
+  return $ HandleFetch (h, m)
 
 -- | Zip-based Fetch backend
 newtype ZipFetch = ZipFetch ((Map String Zip.EntrySelector), String)
@@ -138,3 +151,5 @@ build = go ([], Tar.empty)
       go (((unpack . communication_id) c, Tar.entryPath e):l, Tar.addNextEntry e builder) es
     go (l, !builder) (Tar.Done) = do
       return (l, Tar.finalise builder)
+    go (l, !builder) (Tar.Fail e) = do
+      return (l, Tar.finalise builder)      

@@ -19,7 +19,6 @@ import qualified Data.Text.Lazy as T
 import Data.List (intercalate)
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser, CommunicationAction)
 import Text.Megaparsec (ParsecT, getParserState, stateTokensProcessed, match)
-import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State (State, get, put, modify, modify')
@@ -78,8 +77,8 @@ sectionRule t p = do
   v <- p
   e <- (fromIntegral . stateTokensProcessed) <$> getParserState
   bs@(Bookkeeper {..}) <- get
-  let path' = (intercalate "." (reverse path))
-      section = t $ default_Section { section_label=(Just . pack) path'
+  let path' = (T.intercalate "." (reverse path))
+      section = t $ default_Section { section_label=Just path'
                                     , section_textSpan=Just $ TextSpan s e
                                     , section_sentenceList=if length sentences == 0 then Nothing else Just $ V.fromList sentences
                                     }
@@ -97,7 +96,7 @@ sectionRule t p = do
   return v
 
 -- | Wraps a rule that corresponds to a Communication
-communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
+communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser Communication
 communicationRule tr p = do
   offset <- (fromIntegral . stateTokensProcessed) <$> getParserState
   bs' <- get
@@ -109,21 +108,20 @@ communicationRule tr p = do
   let us = iterate incrementUUID u
   m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
   let sections' = [s { section_uuid=u'
-                     , section_kind=if elem ((unpack . fromJust) section_label) contentSections then "content" else "metadata"
+                     , section_kind=if elem (fromJust section_label) contentSections then "content" else "metadata"
                      , section_textSpan=(\ (Just (TextSpan{..})) -> Just $ TextSpan (textSpan_start - offset) (textSpan_ending - offset)) section_textSpan
                      } | (u', s@(Section{..})) <- zip us sections]
 
-      sectionVals = [(fromJust section_label, pack $ substr (pack t) ((fromIntegral . textSpan_start . fromJust) section_textSpan) ((fromIntegral . textSpan_ending . fromJust) section_textSpan)) | Section{..} <- sections']
+      sectionVals = [(fromJust section_label, pack $ substr t ((fromIntegral . textSpan_start . fromJust) section_textSpan) ((fromIntegral . textSpan_ending . fromJust) section_textSpan)) | Section{..} <- sections']
       c = communication { communication_metadata=m
-                        , communication_text=Just $ pack t
+                        , communication_text=Just t
                         , communication_uuid=u
                         , communication_id=makeId sectionVals commId commNum
                         , communication_sectionList=Just $ fromList sections'
                         }
   put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[], commNum=commNum + 1 }
-  liftIO $ action (tr c)
   clearState
-  return o
+  return c
 
 -- | Extracts a sub-string from a text object
 substr :: T.Text -> Int -> Int -> String
@@ -151,7 +149,7 @@ clearState = do
 --   numeric component onto the path at the start, and popping at the end
 pathArrayRule :: CommunicationParser a -> CommunicationParser a
 pathArrayRule p = do
-  pushPathComponent (show (-1))
+  pushPathComponent ((T.pack .show) (-1))
   (m, r) <- match p
   popPathComponent
   return r
@@ -174,21 +172,21 @@ pathDictionaryRule p = do
 
 -- | Wraps a rule corresponding to a key in a dictionary-like object, modifying
 --   the current head of the stack
-pathDictionaryKeyRule :: CommunicationParser String -> CommunicationParser String
+pathDictionaryKeyRule :: CommunicationParser Text -> CommunicationParser Text
 pathDictionaryKeyRule p = do
   t' <- p
   modifyPathComponent (\x -> t')
   return ""
 
 -- | Push a string component onto the path
-pushPathComponent :: String -> CommunicationParser ()
+pushPathComponent :: Text -> CommunicationParser ()
 pushPathComponent s = do
   Bookkeeper{..} <- get
   modify (\ bs -> bs { path=s:path })
   return ()
 
 -- | Pop the top-level component from the path
-popPathComponent :: CommunicationParser String
+popPathComponent :: CommunicationParser Text
 popPathComponent = do
   Bookkeeper{..} <- get
   let (p:ps) = path
@@ -196,7 +194,7 @@ popPathComponent = do
   return p
 
 -- | Modify the top-level path component
-modifyPathComponent :: (String -> String) -> CommunicationParser ()
+modifyPathComponent :: (Text -> Text) -> CommunicationParser ()
 modifyPathComponent f = do
   Bookkeeper{..} <- get
   let (p:ps) = path
@@ -208,9 +206,9 @@ modifyPathComponent f = do
 incrementPathComponent :: CommunicationParser Int
 incrementPathComponent = do
   Bookkeeper{..} <- get
-  let p = (read $ head path) :: Int
+  let p = (read $ (T.unpack . head) path) :: Int
       p' = p + 1
-  modify (\ bs -> bs { path=(show p'):(tail path) })
+  modify (\ bs -> bs { path=((T.pack . show) p'):(tail path) })
   return p'
 
 -- | A data structure that is positioned inside a document and whose boundaries can be adjusted

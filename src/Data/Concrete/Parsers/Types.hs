@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, BangPatterns #-}
 module Data.Concrete.Parsers.Types ( Bookkeeper(..)
                                    , CommunicationParser
                                    , CommunicationAction
@@ -10,7 +10,7 @@ import Data.Text.Lazy (Text)
 import Data.Concrete.Autogen.Communication_Types (Communication)
 import Data.Concrete.Autogen.Structure_Types (Section, Sentence, Token)
 import Text.Megaparsec (ParsecT)
-import Text.Megaparsec.Error (Dec)
+import Data.Void (Void)
 import Data.Map (Map)
 import Control.Monad.State (StateT)
 import GHC.Int
@@ -23,8 +23,8 @@ type CommunicationAction = Communication -> IO ()
 --   tree.  The meaning will be format-specific: a "step" could
 --   correspond to any number of parse rules.  See the definition
 --   of 'Path' for an example.
-data PathComponent = Index Int -- ^ An index into an anonymous sequence of successors of a path
-                   | Name String -- ^ The name of an identifiable successor of a path
+data PathComponent = Index !Int -- ^ An index into an anonymous sequence of successors of a path
+                   | Name !Text -- ^ The name of an identifiable successor of a path
 
 -- | A 'Path' is a sequence of 'PathComponent's that identifies
 --   a particular location in the document being parsed, usually
@@ -54,23 +54,22 @@ type Path = [PathComponent]
 
 -- | A 'Bookkeeper' tracks information about an ongoing attempt
 --   to parse a Text stream into Communication objects.
-data Bookkeeper = Bookkeeper { communication :: Communication
-                             , valueMap :: Map String String -- | An arbitrary string-to-string map
-                             , path :: [String]
-                             , sections :: [Section] -- | List of Sections accumulated for the Communication currently being parsed
-                             , sentences :: [Sentence] -- | List of Sections accumulated for the Communication currently being parsed
-                             , tokens :: [Token] -- | List of Sections accumulated for the Communication currently being parsed
-                             , action :: CommunicationAction
-                             , contentSections :: [String]
-                             , commId :: Text
-                             , commType :: String
-                             , commNum :: Int
-                             , offset :: GHC.Int.Int32
+data Bookkeeper = Bookkeeper { communication :: !Communication
+                             , valueMap :: !(Map Text Text) -- | An arbitrary string-to-string map
+                             , path :: ![Text]
+                             , sections :: ![Section] -- | List of Sections accumulated for the Communication currently being parsed
+                             , sentences :: ![Sentence] -- | List of Sections accumulated for the Communication currently being parsed
+                             , tokens :: ![Token] -- | List of Sections accumulated for the Communication currently being parsed
+                             , contentSections :: ![Text]
+                             , commId :: !Text
+                             , commType :: !Text
+                             , commNum :: !Int
+                             , offset :: !GHC.Int.Int32
                              }
 
 -- | A StatefulParser is just a Megaparsec Parser that carries
 --   a State, and has access to the IO monad.
-type StatefulParser s a = ParsecT Dec Text (StateT s IO) a
+type StatefulParser s a = ParsecT Void Text (StateT s IO) a
 
 -- | A 'CommunicationParser' is a stateful Megaparsec parser that, as it
 --   processes a Text stream, builds a list of Concrete Communications.

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, BangPatterns #-}
 {-|
 Description : Parsers and utilities for ingesting various formats to Concrete
 
@@ -20,13 +20,14 @@ import Data.Vector (fromList, Vector)
 import Data.Map (Map)
 import Data.Concrete.Utils (createAnnotationMetadata, getUUID, writeCommunication)
 import System.IO (stdin, stdout, stderr, openFile, Handle, IOMode(..), hPutStrLn)
-import Control.Monad.State (runStateT)
+import Control.Monad.State (runStateT, evalStateT)
 import Data.ByteString.Lazy (ByteString)
 import Data.Text.Lazy (Text, pack)
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import Data.Concrete.Parsers.Types
 import Control.Monad.IO.Class (liftIO)
-import Text.Megaparsec (runParserT', initialPos, State(..), unsafePos, parseErrorPretty, eof, space)
+import Text.Megaparsec (runParserT', initialPos, State(..), mkPos, parseErrorPretty, eof)
+import Text.Megaparsec.Char (space)
 import qualified Data.List.NonEmpty as NE
 import Data.Vector (Vector, fromList, snoc, empty)
 import qualified Data.Concrete.Parsers.JSON as JSON
@@ -40,7 +41,7 @@ import qualified Data.Concrete.Parsers.PTB as PTB
 -- | List of ingest configurations and default parameters
 communicationParsers = [( "JSON"
                         , ( "JSON array of arbitrary objects"
-                          , JSON.parser
+                          , JSON.arrayParser
                           , [ "catchphrase"
                             , "relatives.0.name"
                             ]
@@ -58,7 +59,7 @@ communicationParsers = [( "JSON"
                          )
                        , ( "CSV"
                          , ( "CSV format (with header, commas)"
-                           , CSV.parser Nothing ','
+                           , CSV.fileParser Nothing ','
                            , [ "technology"
                              , "Bush"
                              , "Gore"
@@ -68,18 +69,20 @@ communicationParsers = [( "JSON"
                          )
                        , ("CONLL-U"
                          , ( "CONLL-U format"
-                           , CONLL.parser CONLL.conllufields
+                           , CONLL.fileParser CONLL.conllufields
                            , ["sentence"]
                            , "conll_${}"
                            )
                          )
                        , ( "PTB"
                          , ( "PENN Treebank format"
-                           , PTB.parser
+                           , PTB.fileParser
                            , ["sentence"]
                            , "ptb_${}"
                            )
                          )
+
+
                        -- , ("HTML"
                        --   , ("HTML format"
                        --     , HTML.parser
@@ -87,13 +90,13 @@ communicationParsers = [( "JSON"
                        --     , "id_${}"
                        --     )
                        --   )
-                       -- , ("XML"
-                       --   , ("XML format"
-                       --     , XML.parser
-                       --     , []
-                       --     , "id_${}"
-                       --     )
-                       --   )
+                       , ("XML"
+                         , ("XML format"
+                           , XML.parser
+                           , []
+                           , "id_${}"
+                           )
+                         )
                        -- , ("Email"
                        --   , ("Email format"
                        --     , Email.parser
@@ -104,14 +107,15 @@ communicationParsers = [( "JSON"
                        ]
 
 -- | Run CommunicationAction on each entry created during the ingest process
-ingest :: CommunicationAction -> CommunicationParser a -> Text -> [String] -> String -> String -> IO ()
-ingest a p t cs i ct = do
+ingest :: CommunicationParser [Communication] -> Text -> [Text] -> Text -> Text -> IO [Communication]
+--ingest :: ParsecT Void Text m [Communication] -> Text -> [Text] -> Text -> Text -> IO [Communication]
+ingest p t cs i ct = do
   let s = State { stateInput=t
                 , statePos=NE.fromList $ [initialPos "Text File"]
                 , stateTokensProcessed=0
-                , stateTabWidth=unsafePos 8
+                , stateTabWidth=mkPos 8
                 }
-  ((_, e), _) <- runStateT (runParserT' (space >> p >> space >> eof) s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] a cs (pack i) ct 0 0)
+  (_, e) <- evalStateT (runParserT' p s) (Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] cs i ct 0 0)
   case e of
-    Left x -> putStrLn $ parseErrorPretty x
-    _ -> return ()
+    Left x -> (putStrLn $ parseErrorPretty x) >> return []
+    Right t -> return t
