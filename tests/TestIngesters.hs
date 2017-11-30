@@ -20,6 +20,7 @@ import qualified Codec.Compression.GZip as GZip
 import Data.Concrete.Utils (writeCommunication, showCommunication)
 import Data.Concrete.Parsers.Types (CommunicationParser)
 import Data.Concrete.Parsers (communicationParsers, ingest)
+import Data.Concrete.Parsers.Utils (finalizeCommunication)
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import Text.Printf (printf)
 import qualified Control.Concurrent as C
@@ -36,63 +37,15 @@ import Data.Concrete.Autogen.Access_Types (FetchRequest(..), default_FetchReques
 import System.IO.Unsafe
 import qualified Codec.Compression.GZip as GZip
 import qualified Data.Vector as V
+import Conduit
+import System.Exit (exitFailure)
+ 
+testFormat (name, (desc, src, contentSects, idStr)) = do
+  putStrLn $ "\nTesting parser for " ++ name
+  let inputFile = printf "tests/data/example.%s.gz" name :: String
+  txt <- (liftM GZip.decompress . BS.readFile) inputFile
+  ingest src (\c -> print $ communication_id c) (\_ -> True) (decodeUtf8 txt) contentSects idStr "test comms"
 
-
-testFormat :: (String, (desc, CommunicationParser (), [String], String)) -> IO ()
-testFormat (f, (d, p, c, i)) = do
-  let inputFile = printf "tests/data/example.%s.gz" f :: String
-  putStrLn (printf "\t%s" f :: String)
-  con <- connectToService "localhost" 9090
-  ih <- (liftM GZip.decompress . BS.readFile) inputFile
-  let (_, cp, _, _) = (Map.fromList communicationParsers) ! f
-  ingest (\c -> do
-             putStrLn $ printf "\t\t%s" (communication_id c)
-             StoreService.store con c) p (decodeUtf8 ih) c i "concrete-haskell unit test data"
-  return ()
-
-
-testFetch :: IO ()
-testFetch = do
-  putStrLn "Testing fetch service:"
-  con <- connectToService "localhost" 9091
-  c <- FetchService.getCommunicationCount con
-  putStrLn $ printf "\tFetch service reports %d Communications" c
-  ids <- FetchService.getCommunicationIDs con 0 c
-  putStrLn $ printf "\tReceived %d Communication IDs" (length ids)
-  FetchResult {..} <- FetchService.fetch con $ default_FetchRequest { fetchRequest_communicationIds=ids }
-  sequence $ map (putStrLn . printf "\t\tFetched Communication with ID == %s" . T.unpack . communication_id) (V.toList fetchResult_communications)
-  return ()
-  
-
-main = do
-  putStrLn "\nTesting parsers + fetch and store services:"
-  let outputFile = "test.tar"
-  store <- C.forkIO $ do
-    case takeExtension outputFile of
-      ".zip" -> do
-        h <- makeZipStore outputFile
-        runConcreteService 9090 Store.process h
-      ".tar" -> do
-        h <- makeTarStore outputFile
-        runConcreteService 9090 Store.process h
-      _ -> do
-        h <- makeHandleStore outputFile
-        runConcreteService 9090 Store.process h
-  C.threadDelay 1000000
-  sequence $ map testFormat (communicationParsers)
-  C.killThread store  
-  C.threadDelay 1000000
-  fetch <- C.forkIO $ do
-    case takeExtension outputFile of
-      ".zip" -> do
-        h <- makeZipFetch outputFile
-        runConcreteService 9091 Fetch.process h
-      ".tar" -> do
-        h <- makeTarFetch outputFile
-        runConcreteService 9091 Fetch.process h
-      _ -> do
-        h <- makeHandleFetch outputFile
-        runConcreteService 9091 Fetch.process h
-  C.threadDelay 1000000
-  testFetch
-  C.killThread fetch
+main = do  
+  mapM testFormat communicationParsers
+  exitFailure

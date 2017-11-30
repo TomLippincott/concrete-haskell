@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances, PackageImports #-}
 {-|
 Description: Implementations of StoreCommunicationService
 -}
@@ -10,13 +10,15 @@ module Data.Concrete.Services.Store ( ZipStore(..)
                                     , makeTarStore
                                     , makeZipStore
                                     , makeHandleStore
+                                    , storeDirect
                                     ) where
 
 import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.BZip as BZip
-import qualified Codec.Archive.Zip       as Zip
+import qualified "zip" Codec.Archive.Zip       as Zip
+import qualified "zip-conduit" Codec.Archive.Zip       as ZipC
 import qualified Codec.Archive.Tar       as Tar
 import qualified Codec.Archive.Tar.Entry as Tar
 import qualified Codec.Archive.Tar.Index as Tar
@@ -37,6 +39,11 @@ import System.IO (openFile, IOMode(..))
 import Control.Monad (liftM)
 import System.FilePath (takeExtension)
 import Control.Monad.IO.Class (liftIO)
+import Conduit
+import Data.Void (Void)
+
+storeDirect :: StoreCommunicationService_Iface a => a -> [Communication] -> IO ()
+storeDirect s cs = (sequence $ map (store s) cs) >> return ()
 
 lift1st :: Monad m => (m a, b) -> m (a, b)
 lift1st (f, s) = do

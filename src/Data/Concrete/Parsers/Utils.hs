@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, RecordWildCards, FlexibleContexts #-}
 module Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule
                                    , sentenceRule
@@ -12,26 +12,41 @@ module Data.Concrete.Parsers.Utils ( communicationRule
                                    , modifyPathComponent
                                    , incrementPathComponent                                   
                                    , Located(..)
+                                   , unfoldParse
+                                   , unfoldParseArray
+                                   , unfoldParseNewline
+                                   , finalizeCommunication
                                    ) where
 
 import Data.Text.Lazy (Text, pack, unpack, replace)
 import qualified Data.Text.Lazy as T
 import Data.List (intercalate)
 import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser, CommunicationAction)
-import Text.Megaparsec (ParsecT, getParserState, stateTokensProcessed, match)
-import Text.Megaparsec.Error (Dec)
+import Text.Megaparsec (ParsecT, getParserState, stateTokensProcessed, match, State(..), mkPos, initialPos, runParserT', parseErrorPretty)
+import Text.Megaparsec.Char (char, oneOf, space, newline)
+import qualified Data.List.NonEmpty as NE
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Control.Monad.State (State, get, put, modify, modify')
+--import Data.Concrete.Prelude
 import Data.Concrete.Autogen.Communication_Types (Communication(..), default_Communication)
 import Data.Concrete.Autogen.Structure_Types (Section(..), default_Section, Token(..), default_Token, Sentence(..), default_Sentence, TokenizationKind(..), Tokenization(..), default_Tokenization, TokenList(..), default_TokenList)
 import Data.Concrete.Autogen.Spans_Types (TextSpan(..), default_TextSpan, AudioSpan(..), default_AudioSpan)
+import Data.Concrete.Autogen.Metadata_Types (default_AnnotationMetadata)
+import Data.Concrete.Autogen.Uuid_Types (default_UUID)
 import Data.Concrete.Utils (getUUID, createAnnotationMetadata, incrementUUID)
 import Control.Monad.IO.Class (liftIO)
 import Data.Vector (Vector, fromList, snoc, empty, cons, toList)
 import qualified Data.Vector as V
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, catMaybes)
 import Text.Printf (printf)
+import Conduit
+import Data.Conduit.List (unfold, unfoldM)
+import Control.Monad.State (runStateT)
+import Control.Lens hiding (cons)
+--import Data.Concrete.Autogen.Lens.Communication hiding (communication)
+--import Data.Concrete.Autogen.Lens.Section
+import Data.Concrete.Prelude hiding (communication)
 
 -- | Wraps a rule corresponding to a Token
 tokenRule :: (Token -> Token) -> CommunicationParser a -> CommunicationParser a
@@ -54,8 +69,10 @@ sentenceRule t p = do
   v <- p
   e <- (fromIntegral . stateTokensProcessed) <$> getParserState
   bs@(Bookkeeper {..}) <- get
-  u <- liftIO getUUID
-  m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
+  let u = default_UUID
+      m = default_AnnotationMetadata
+  --u <- liftIO getUUID
+  --m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
   let tokenList = default_TokenList { tokenList_tokenList=V.fromList (reverse tokens)
                                     }
       tokenization = default_Tokenization { tokenization_tokenList=Just tokenList
@@ -96,8 +113,9 @@ sectionRule t p = do
              }
   return v
 
+
 -- | Wraps a rule that corresponds to a Communication
-communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser a
+communicationRule :: (Communication -> Communication) -> CommunicationParser a -> CommunicationParser Communication
 communicationRule tr p = do
   offset <- (fromIntegral . stateTokensProcessed) <$> getParserState
   bs' <- get
@@ -105,36 +123,33 @@ communicationRule tr p = do
   (t, o) <- match p
   bs@(Bookkeeper {..}) <- get
   let sections = (toList . fromJust) (communication_sectionList communication)
-  u <- liftIO getUUID
+      u = default_UUID
+  --u <- liftIO getUUID
   let us = iterate incrementUUID u
-  m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
+      m = default_AnnotationMetadata
+  --m <- liftIO $ createAnnotationMetadata "concrete-haskell ingester"
   let sections' = [s { section_uuid=u'
-                     , section_kind=if elem ((unpack . fromJust) section_label) contentSections then "content" else "metadata"
+                     , section_kind="" -- if elem ((unpack . fromJust) section_label) contentSections then "content" else "metadata"
                      , section_textSpan=(\ (Just (TextSpan{..})) -> Just $ TextSpan (textSpan_start - offset) (textSpan_ending - offset)) section_textSpan
                      } | (u', s@(Section{..})) <- zip us sections]
 
-      sectionVals = [(fromJust section_label, pack $ substr (pack t) ((fromIntegral . textSpan_start . fromJust) section_textSpan) ((fromIntegral . textSpan_ending . fromJust) section_textSpan)) | Section{..} <- sections']
+      sectionVals = [(fromJust section_label, substr t ((fromIntegral . textSpan_start . fromJust) section_textSpan) ((fromIntegral . textSpan_ending . fromJust) section_textSpan)) | Section{..} <- sections']
       c = communication { communication_metadata=m
-                        , communication_text=Just $ pack t
+                        , communication_text=Just t
                         , communication_uuid=u
-                        , communication_id=makeId sectionVals commId commNum
+                        -- , communication_id=makeId sectionVals commId commNum
                         , communication_sectionList=Just $ fromList sections'
                         }
-  put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[], commNum=commNum + 1 }
-  liftIO $ action (tr c)
+  put $ bs { communication=default_Communication { communication_sectionList=Just empty }, valueMap=Map.fromList [], sections=[] }
   clearState
-  return o
+  return c
 
 -- | Extracts a sub-string from a text object
-substr :: T.Text -> Int -> Int -> String
-substr t s e = T.unpack res
+substr :: T.Text -> Int -> Int -> Text
+substr t s e = res
   where
     (_, start) = T.splitAt (fromIntegral s) t
     res = T.take (fromIntegral $ e - s) start
-
--- | Performs variable substitution on an ID string
-makeId :: [(Text, Text)] -> Text -> Int -> Text
-makeId ss i n = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) i (("", (pack . show) n):ss)
 
 -- | Resets the "Communication-building" state inside the parser
 clearState :: CommunicationParser ()
@@ -213,6 +228,66 @@ incrementPathComponent = do
   modify (\ bs -> bs { path=(show p'):(tail path) })
   return p'
 
+-- | Performs variable substitution on an ID string
+makeId :: Communication -> Text -> Int -> Text
+makeId c idStr n = foldr (\ (a, b) x -> T.replace (T.concat ["${", a, "}"]) b x) idStr (("", (pack . show) n):ss'')
+  where
+    Just ss' = V.toList <$> c ^. _communication_sectionList    
+    Just t = communication_text c
+    ss'' = map (\s -> ((fromJust . section_label) s, (spanText t . fromJust . section_textSpan) s)) ss'
+
+    --k = map (\s -> (section_label s, spanText t s)) (catMaybes (map section_textSpan ss'))
+
+finalizeCommunication :: Text -> [Text] -> (Int, Communication) -> IO Communication
+finalizeCommunication idStr cs (i, c) = return $ c & _communication_id .~ cid
+  where
+    cid = makeId c idStr i
+      
+oneParse b p s = case runStateT (runParserT' p s) b of
+                   Identity ((_, Left e), _) -> Nothing -- error $ parseErrorPretty e
+                   Identity ((s', Right c), _) -> Just (c, s')
+
+unfoldParse :: Monad m => CommunicationParser Communication -> Text -> ConduitM () Communication m ()
+unfoldParse p t = unfoldC (oneParse b p) s
+  where
+    s = State { stateInput=t
+              , statePos=NE.fromList $ [initialPos "Text File"]
+              , stateTokensProcessed=0
+              , stateTabWidth=mkPos 8
+              }
+    b = Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] 0
+
+unfoldParseArray :: Monad m => CommunicationParser Communication -> Text -> ConduitM () Communication m ()
+unfoldParseArray p t = unfoldC (oneParse b p') s
+  where
+    t' = T.dropWhile (\c -> c /= '{') t
+    s = State { stateInput=t'
+              , statePos=NE.fromList $ [initialPos "Text File"]
+              , stateTokensProcessed=0
+              , stateTabWidth=mkPos 8
+              }
+    b = Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] 0        
+    p' = do
+      c <- p
+      space
+      oneOf [',', ']']
+      space
+      return c
+
+unfoldParseNewline :: Monad m => CommunicationParser Communication -> Text -> ConduitM () Communication m ()
+unfoldParseNewline p t = unfoldC (oneParse b p') s
+  where
+    s = State { stateInput=t
+              , statePos=NE.fromList $ [initialPos "Text File"]
+              , stateTokensProcessed=0
+              , stateTabWidth=mkPos 8
+              }
+    b = Bookkeeper (default_Communication { communication_sectionList=Just empty }) Map.empty [] [] [] [] 0        
+    p' = do
+      c <- p
+      newline
+      return c
+
 -- | A data structure that is positioned inside a document and whose boundaries can be adjusted
 class Located a where
   getTextSpan :: a -> TextSpan
@@ -235,3 +310,6 @@ instance Located Sentence where
 instance Located Token where
   getTextSpan s = (fromJust . token_textSpan) s
   setTextSpan ts s = s { token_textSpan=Just ts }
+
+spanText :: Text -> TextSpan -> Text
+spanText t ts = substr t (fromIntegral $ textSpan_start ts) (fromIntegral $ textSpan_ending ts)

@@ -4,16 +4,21 @@ module Data.Concrete.Parsers.Types ( Bookkeeper(..)
                                    , CommunicationAction
                                    , PathComponent(..)
                                    , Path
+                                   , IngestStream
                                    ) where
 
 import Data.Text.Lazy (Text)
 import Data.Concrete.Autogen.Communication_Types (Communication)
 import Data.Concrete.Autogen.Structure_Types (Section, Sentence, Token)
 import Text.Megaparsec (ParsecT)
-import Text.Megaparsec.Error (Dec)
 import Data.Map (Map)
 import Control.Monad.State (StateT)
 import GHC.Int
+import Data.Void (Void)
+import Conduit
+import Control.Monad.Identity (Identity)
+
+type IngestStream = ConduitM Text Communication (ResourceT IO) ()
 
 -- | A 'CommunicationAction' gets called on each Communication
 --   as parsing proceeds
@@ -60,18 +65,18 @@ data Bookkeeper = Bookkeeper { communication :: Communication
                              , sections :: [Section] -- | List of Sections accumulated for the Communication currently being parsed
                              , sentences :: [Sentence] -- | List of Sections accumulated for the Communication currently being parsed
                              , tokens :: [Token] -- | List of Sections accumulated for the Communication currently being parsed
-                             , action :: CommunicationAction
-                             , contentSections :: [String]
-                             , commId :: Text
-                             , commType :: String
-                             , commNum :: Int
+                             --, contentSections :: [String]
+                             --, commId :: Text
+                             --, commType :: Text
+                             --, commNum :: Int
                              , offset :: GHC.Int.Int32
                              }
 
 -- | A StatefulParser is just a Megaparsec Parser that carries
 --   a State, and has access to the IO monad.
-type StatefulParser s a = ParsecT Dec Text (StateT s IO) a
+type StatefulParser s a = ParsecT Void Text (StateT s Identity) a
 
 -- | A 'CommunicationParser' is a stateful Megaparsec parser that, as it
 --   processes a Text stream, builds a list of Concrete Communications.
+--type CommunicationParser a = ParsecT Void Text Identity a
 type CommunicationParser a = StatefulParser Bookkeeper a

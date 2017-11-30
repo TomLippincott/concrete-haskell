@@ -1,33 +1,32 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module Data.Concrete.Parsers.JSON
-       ( parser
-       , lineParser
+       ( parseCommunication
+       , sequenceSource
+       , arraySource
        ) where
 
 import Control.Monad.State (State, get, put, modify, modify')
 import Data.Maybe (fromJust)
 import Data.List (intercalate)
-import Data.Scientific (scientific, Scientific(..))
 import Data.Text.Lazy (pack, Text)
 import Data.Functor (($>))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.List.NonEmpty (fromList)
-import Text.Megaparsec.Lexer (symbol, lexeme, signed, number)
+import Text.Megaparsec.Char.Lexer (symbol, lexeme, signed, scientific)
 import Text.Megaparsec.Pos (initialPos, defaultTabWidth)
-import Text.Megaparsec.Error (Dec)
+import Text.Megaparsec.Char ( char
+                            , space
+                            , anyChar
+                            , hexDigitChar
+                            , satisfy
+                            )
 import Text.Megaparsec ( parseErrorPretty
                        , (<|>)
-                       , eol
-                       , space
-                       , hexDigitChar
                        , count
                        , manyTill
-                       , anyChar
                        , runParser
-                       , try
                        , some
-                       , char
                        , choice
                        , sepBy
                        , between
@@ -36,15 +35,16 @@ import Text.Megaparsec ( parseErrorPretty
                        , runParserT'
                        , State(..)
                        , getParserState
-                       , eof
                        , many
+                       , eof
+                       , try
+                       , mkPos
                        )
 import Control.Monad.IO.Class (liftIO)
-import Text.Megaparsec.Text.Lazy (Parser)
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
-import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser)
+import Data.Concrete.Parsers.Types (Bookkeeper(..), CommunicationParser, IngestStream)
 import Data.Concrete.Parsers.Utils ( communicationRule
                                    , sectionRule
                                    , pathArrayRule
@@ -57,14 +57,21 @@ import Data.Concrete.Parsers.Utils ( communicationRule
                                    , modifyPathComponent
                                    , incrementPathComponent
                                    )
+import Data.Concrete.Parsers.Utils (unfoldParse, unfoldParseArray)
+import Conduit
+import qualified Data.List.NonEmpty as NE
 
--- | Parses an array of JSON objects, turning each into a Communication
-parser :: CommunicationParser ()
-parser = brackets ((communicationRule id objectP) `sepBy` comma) >> return ()
+-- | Parses a sequence of JSON objects into a stream
+sequenceSource :: Text -> ConduitM () Communication IO ()
+sequenceSource = unfoldParse parseCommunication
 
--- | Parses a sequence of JSON objects (i.e. not a valid JSON object overall), like one object per line
-lineParser :: CommunicationParser ()
-lineParser = (many (communicationRule id objectP)) >> return ()
+-- | Parses an array of JSON objects into a stream
+arraySource :: Text -> ConduitM () Communication IO ()
+arraySource = unfoldParseArray parseCommunication
+
+-- | Parser for turning a single JSON object into a Communication
+parseCommunication :: CommunicationParser Communication
+parseCommunication = communicationRule id objectP -- >> return default_Communication
 
 jsonP = lexeme' $ choice [nullP, numberP, stringP, boolP, objectP, arrayP]
 
@@ -72,7 +79,7 @@ nullP = sectionRule id $ symbol' "null" >> return ()
 
 boolP = sectionRule id $ (symbol' "true" <|> symbol' "false") >> return ()
 
-numberP = sectionRule id $ signed space number >> return ()
+numberP = sectionRule id $ signed space scientific >> return ()
 
 stringP = stringPLiteral >> return ()
 

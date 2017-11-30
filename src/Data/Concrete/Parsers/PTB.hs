@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings, ApplicativeDo #-}
 module Data.Concrete.Parsers.PTB
-       ( parser
+       ( sequenceSource
        ) where
 
 import Data.Char (isSpace)
@@ -13,21 +13,28 @@ import Data.Functor (($>))
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.List.NonEmpty (fromList)
-import Text.Megaparsec.Lexer (symbol, lexeme, signed, number)
+--import Text.Megaparsec.Lexer (symbol, lexeme, signed, number)
+
 import Text.Megaparsec.Pos (initialPos, defaultTabWidth)
-import Text.Megaparsec.Error (Dec)
-import Text.Megaparsec.Lexer (symbol, lexeme, signed, number)
+--import Text.Megaparsec.Error (Dec)
+import Text.Megaparsec.Char.Lexer (symbol, lexeme, signed, scientific)
+import Text.Megaparsec.Char ( eol
+                            , noneOf
+                            , newline
+                            , char
+                            , anyChar
+                            , space
+                            , hexDigitChar
+                            , tab
+                            , separatorChar
+                            , satisfy
+                            )
 import Text.Megaparsec ( parseErrorPretty
                        , (<|>)
-                       , satisfy
-                       , space
-                       , hexDigitChar
                        , count
                        , manyTill
-                       , anyChar
                        , runParser
                        , some
-                       , char
                        , choice
                        , sepBy
                        , between
@@ -36,21 +43,51 @@ import Text.Megaparsec ( parseErrorPretty
                        , runParserT'
                        , State(..)
                        , getParserState
-                       , spaceChar
+                       , sepBy1
+                       , many
                        , eof
-                       , noneOf
-                       , try
+                       , someTill
                        )
+-- import Text.Megaparsec ( parseErrorPretty
+--                        , (<|>)
+--                        , satisfy
+--                        , space
+--                        , hexDigitChar
+--                        , count
+--                        , manyTill
+--                        , anyChar
+--                        , runParser
+--                        , some
+--                        , char
+--                        , choice
+--                        , sepBy
+--                        , between
+--                        , match
+--                        , ParsecT
+--                        , runParserT'
+--                        , State(..)
+--                        , getParserState
+--                        , spaceChar
+--                        , eof
+--                        , noneOf
+--                        , try
+--                        )
 
 import Control.Monad.IO.Class (liftIO)       
-import Text.Megaparsec.Text.Lazy (Parser)
+--import Text.Megaparsec.Text.Lazy (Parser)
 import Data.Concrete.Autogen.Communication_Types (default_Communication, Communication(..))
 import qualified Control.Monad.State as S
 import qualified Control.Monad.Identity as I
-import Data.Concrete.Parsers.Utils (communicationRule, sectionRule, sentenceRule, tokenRule, pushPathComponent, popPathComponent)
+--import Data.Concrete.Types
+import Data.Concrete.Parsers.Utils (communicationRule, sectionRule)
+import Data.Concrete.Parsers.Utils (unfoldParse, unfoldParseArray)
+import Conduit
 
--- | Parser for PENN Treebank format
---   NOTE: currently, doesn't capture tags/parses
+--sequenceSource = undefined
+-- | Parses a sequence of JSON objects into a stream
+sequenceSource :: Text -> ConduitM () Communication IO ()
+sequenceSource = unfoldParse (communicationRule id (parens (some sentence)))
+
 parser :: CommunicationParser ()
 parser = do
   space
@@ -59,19 +96,18 @@ parser = do
   eof
   return ()
 
+-- type CS = CommunicationParser String
+-- type CSS = CommunicationParser [String]
+-- type CC = CommunicationParser Char
+
 document :: CommunicationParser ()
 document = lexeme' $ communicationRule id (parens (some sentence)) >> return ()
 
-sentence = do
-  pushPathComponent "sentence"
-  (sectionRule id . sentenceRule id) $ lexeme' $ between (symbol' "(S") (symbol' ")") (some phrase)
-  popPathComponent  
-  
-phrase = lexeme' $ parens (tag >> some (token <|> phrase)) >> return []
+sentence = lexeme' $ between (symbol' "(S") (symbol' ")") (some phrase)
+
+phrase = lexeme' $ parens (tag >> some (tag <|> phrase)) >> return []
 
 tag = lexicalItem
-
-token = tokenRule id lexicalItem
 
 lexicalItem = lexeme' $ some notSpaceOrParen
 

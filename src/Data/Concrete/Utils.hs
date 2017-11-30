@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, FlexibleInstances, PackageImports #-}
 
 {-|
 Description: Common tools for working with Concrete data
@@ -54,7 +54,7 @@ import qualified Data.ByteString.Lazy as BS
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.BZip as BZip
 import qualified Codec.Archive.Tar       as Tar
-import qualified Codec.Archive.Zip       as Zip
+import qualified "zip" Codec.Archive.Zip       as Zip
 import qualified Codec.Archive.Tar.Entry as Tar
 import qualified Codec.Archive.Tar.Index as Tar
 import Data.Time
